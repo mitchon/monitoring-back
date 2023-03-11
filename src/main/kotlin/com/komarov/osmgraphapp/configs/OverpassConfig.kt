@@ -7,7 +7,7 @@ import org.springframework.context.annotation.Configuration
 
 
 @Configuration
-class OverpassConfigurations {
+class OverpassConfig {
     @Bean
     fun connect(): OverpassMapDataApi {
         val connection = OsmConnection("https://overpass-api.de/api/", "osm-graph-app")
