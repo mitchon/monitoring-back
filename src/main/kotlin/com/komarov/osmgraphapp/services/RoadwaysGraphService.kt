@@ -38,13 +38,9 @@ class RoadwaysGraphService(
                 """
                 [bbox:${boundingBox.minLatitude},${boundingBox.minLongitude},${boundingBox.maxLatitude},${boundingBox.maxLongitude}];
                 (
-                    way['highway' = 'motorway'];
-                    way['highway' = 'trunk'];
                     way['highway' = 'primary'];
                     way['highway' = 'secondary'];
                     way['highway' = 'tertiary'];
-                    way['highway' = 'unclassified'];
-                    way['highway' = 'residential'];
                 );
                 out meta;
             """.trimIndent(),
@@ -61,16 +57,16 @@ class RoadwaysGraphService(
                     nodesHandler
                 )
                 Way(
-                    id = way.id,
+                    id = Random().nextLong(),
                     nodes = nodesHandler.get().map {
                         Node(
-                            id = it.id,
+                            id = Random().nextLong(),
                             latitude = it.position.latitude,
                             longitude = it.position.longitude
                         )
                     }
                 )
-            }.distinctBy { it.id }
+            }
             wayRepository.insertBatch(roadwaysGeom.map { WayEntity(it.id) })
             nodeRepository.insertBatch(roadwaysGeom.flatMap { way ->
                 way.nodes.map {
