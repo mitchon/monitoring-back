@@ -1,8 +1,10 @@
 package com.komarov.osmgraphapp.controllers
 
-import com.komarov.osmgraphapp.services.GraphService
-import com.komarov.osmgraphapp.services.LatLngBounds
-import de.westnordost.osmapi.map.data.BoundingBox
+import com.komarov.osmgraphapp.models.BoundingBoxTemplate
+import com.komarov.osmgraphapp.models.RequestResponse
+import com.komarov.osmgraphapp.services.Node
+import com.komarov.osmgraphapp.services.RoadwaysGraphService
+import com.komarov.osmgraphapp.services.Way
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
@@ -11,10 +13,10 @@ import org.springframework.web.bind.annotation.RestController
 @RestController
 @RequestMapping("/graph")
 class GraphController(
-    private val graphService: GraphService
+    private val roadwaysGraphService: RoadwaysGraphService
 ) {
     @GetMapping("/geom")
-    fun getGraphGeom(@RequestParam bounds: LatLngBounds) {
-        graphService.getGraphGeom(bounds)
+    fun getGraphGeom() : List<Way> {
+        return roadwaysGraphService.requestRoads()
     }
 }
