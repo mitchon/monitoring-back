@@ -18,13 +18,13 @@ import org.springframework.stereotype.Repository
 import java.util.*
 
 
-class WayNodeReducer: LinkedHashMapRowReducer<Long, WayEntity> {
-    override fun accumulate(container: MutableMap<Long, WayEntity>, rowView: RowView) {
-        val way: WayEntity = container.computeIfAbsent(rowView.getColumn("id", Long::class.javaObjectType)) {
+class WayNodeReducer: LinkedHashMapRowReducer<UUID, WayEntity> {
+    override fun accumulate(container: MutableMap<UUID, WayEntity>, rowView: RowView) {
+        val way: WayEntity = container.computeIfAbsent(rowView.getColumn("way_pk", UUID::class.javaObjectType)) {
             rowView.getRow(WayEntity::class.java)
         }
 
-        if (rowView.getColumn("node_id", Long::class.javaObjectType) != null) {
+        if (rowView.getColumn("node_pk", UUID::class.javaObjectType) != null) {
             way.nodes.add(rowView.getRow(NodeEntity::class.java))
         }
     }
@@ -34,12 +34,12 @@ class WayNodeReducer: LinkedHashMapRowReducer<Long, WayEntity> {
 interface WayEntityJdbiRepository {
 
     @RegisterKotlinMapper(WayEntity::class)
-    @SqlBatch("insert into ways values (:id)")
+    @SqlBatch("insert into ways values (:id, :osmId)")
     fun insertBatch(@BindBean ways: List<WayEntity>)
 
     @RegisterKotlinMapper(WayEntity::class)
     @RegisterKotlinMapper(NodeEntity::class)
-    @SqlQuery("select w.*, n.id as node_id, n.way_id, n.latitude, n.longitude from master.ways w left join nodes n on n.way_id = w.id")
+    @SqlQuery("select w.id as way_pk, w.osm_id as osm_way, n.id as node_pk, n.osm_id as osm_node, n.way_id as way_fk, n.latitude, n.longitude, n.index from ways w left join nodes n on n.way_id = w.osm_id")
     @UseRowReducer(WayNodeReducer::class)
     fun findAll(): List<WayEntity>
 }

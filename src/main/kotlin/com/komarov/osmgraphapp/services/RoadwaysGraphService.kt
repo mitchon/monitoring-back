@@ -28,10 +28,10 @@ class RoadwaysGraphService(
     fun requestRoads(): List<Way> {
         if (wayRepository.findAll().isEmpty()) {
             val boundingBox = BoundingBoxTemplate(
-                minLatitude = 54.7335694,
-                minLongitude = 38.8318137,
-                maxLatitude = 54.7835694,
-                maxLongitude = 38.9218137,
+                minLatitude = 54.7585694 - 0.07 / 2,
+                minLongitude = 38.8818137 - 0.07,
+                maxLatitude = 54.7585694 + 0.07 / 2,
+                maxLongitude = 38.8818137 + 0.07,
             )
             val roadwaysHandler = RoadwaysHandler()
             overpass.queryElements(
@@ -57,24 +57,30 @@ class RoadwaysGraphService(
                     nodesHandler
                 )
                 Way(
-                    id = Random().nextLong(),
-                    nodes = nodesHandler.get().map {
+                    id = way.id,
+                    nodes = nodesHandler.get().mapIndexed { i, it ->
                         Node(
-                            id = Random().nextLong(),
+                            id = it.id,
                             latitude = it.position.latitude,
-                            longitude = it.position.longitude
+                            longitude = it.position.longitude,
+                            index = i+1
                         )
                     }
                 )
             }
-            wayRepository.insertBatch(roadwaysGeom.map { WayEntity(it.id) })
+            wayRepository.insertBatch(roadwaysGeom.map {
+                WayEntity(
+                    osmId = it.id
+                )
+            })
             nodeRepository.insertBatch(roadwaysGeom.flatMap { way ->
                 way.nodes.map {
                     NodeEntity(
-                        id = it.id,
+                        osmId = it.id,
                         wayId = way.id,
                         latitude = it.latitude,
-                        longitude = it.longitude
+                        longitude = it.longitude,
+                        index = it.index
                     )
                 }
             })
@@ -83,12 +89,13 @@ class RoadwaysGraphService(
             val ways = wayRepository.findAll()
             val roadwaysGeom = ways.map { way ->
                 Way(
-                    id = way.id,
+                    id = way.osmId,
                     nodes = way.nodes.map {
                         Node(
-                            id = it.id,
+                            id = it.osmId,
                             latitude = it.latitude,
-                            longitude = it.longitude
+                            longitude = it.longitude,
+                            index = it.index
                         )
                     }
                 )
@@ -102,7 +109,8 @@ class RoadwaysGraphService(
 data class Node(
     val id: Long,
     val latitude: Double,
-    val longitude: Double
+    val longitude: Double,
+    val index: Int
 )
 
 data class Way(

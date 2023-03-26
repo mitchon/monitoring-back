@@ -19,15 +19,17 @@ create table if not exists master.tokens (
 );
 
 create table if not exists master.ways (
-    id integer,
+    id uuid,
+    osm_id bigint not null,
     primary key (id)
 );
 
 create table if not exists master.nodes (
-    id integer,
-    way_id integer,
+    id uuid,
+    osm_id bigint not null,
+    way_id bigint not null,
     primary key (id),
-    foreign key (way_id) references master.ways(id),
-    latitude double precision,
-    longitude double precision
+    latitude double precision not null,
+    longitude double precision not null,
+    index integer not null
 );

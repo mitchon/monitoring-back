@@ -16,10 +16,10 @@ import java.util.*
 
 interface NodeEntityJdbiRepository {
     @RegisterKotlinMapper(NodeEntity::class)
-    @SqlBatch("insert into nodes values (:id, :wayId, :latitude, :longitude)")
+    @SqlBatch("insert into nodes values (:id, :osmId, :wayId, :latitude, :longitude, :index)")
     fun insertBatch(@BindBean nodes: List<NodeEntity>)
     @RegisterKotlinMapper(NodeEntity::class)
-    @SqlQuery("select n.id as node_id, way_id, n.latitude, n.longitude from master.nodes n")
+    @SqlQuery("select n.id as node_pk, n.osm_id as osm_node, n.way_id as way_fk, n.latitude, n.longitude, n.index from master.nodes n")
     fun findAll(): List<NodeEntity>
 }
 
