@@ -13,6 +13,9 @@ import de.westnordost.osmapi.overpass.OverpassMapDataApi
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import java.util.UUID
+import kotlin.math.acos
+import kotlin.math.cos
+import kotlin.math.sin
 
 @Service
 class RoadwaysGraphService(
@@ -88,10 +91,14 @@ class RoadwaysGraphService(
         }
         if (locations.isEmpty()) return listOf()
         val primary = locations.zipWithNext().map { link ->
+            val length = acos(
+                sin(link.first.latitude)*sin(link.second.latitude)+
+                    cos(link.first.latitude)*cos(link.second.latitude)*cos(link.second.longitude-link.first.longitude)
+            ) * 6371
             val newLink = LocationLink(
                 start = link.first,
                 finish = link.second,
-                length = 0.0
+                length = length
             )
             link.first.copy(
                 links = link.first.links + newLink
@@ -102,10 +109,14 @@ class RoadwaysGraphService(
 
         if (!this.oneway) {
             secondary = locations.reversed().zipWithNext().map { link ->
+                val length = acos(
+                    sin(link.first.latitude)*sin(link.second.latitude)+
+                        cos(link.first.latitude)*cos(link.second.latitude)*cos(link.second.longitude-link.first.longitude)
+                ) * 6371
                 val newLink = LocationLink(
                     start = link.first,
                     finish = link.second,
-                    length = 0.0
+                    length = length
                 )
                 link.first.copy(
                     links = link.first.links + newLink
@@ -113,6 +124,7 @@ class RoadwaysGraphService(
             } + locations.first()
         }
 
+        logger.info("Got all nodes for way ${this.id}")
         return (primary + secondary).groupBy { it.id }.map {
             it.value.first().copy(
                 links = it.value.flatMap { it.links }
@@ -130,6 +142,7 @@ class RoadwaysGraphService(
                     way['highway' = 'secondary'];
                     way['highway' = 'tertiary'];
                     way['highway' = 'residential'];
+                    way['highway' = 'living_street'];
                 );
                 out meta;
             """.trimIndent(),
