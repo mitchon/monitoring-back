@@ -10,8 +10,15 @@ import com.komarov.osmgraphapp.models.*
 import com.komarov.osmgraphapp.repositories.LocationRepository
 import com.komarov.osmgraphapp.repositories.LocationLinkRepository
 import de.westnordost.osmapi.overpass.OverpassMapDataApi
+import org.jgrapht.alg.shortestpath.DijkstraShortestPath
+import org.jgrapht.graph.DefaultWeightedEdge
+import org.jgrapht.graph.DirectedWeightedPseudograph
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
+import org.springframework.transaction.event.TransactionPhase
+import org.springframework.transaction.event.TransactionalEventListener
+import java.time.Duration
+import java.time.Instant
 import java.util.UUID
 import kotlin.math.acos
 import kotlin.math.cos
@@ -27,6 +34,45 @@ class RoadwaysGraphService(
 ) {
     private val logger = LoggerFactory.getLogger(this::class.java)
     private val boundingBox = BoundingBoxTemplate.maxBoundingBox
+    private val routesGraph: DirectedWeightedPseudograph<Long, DefaultWeightedEdge> = initializeGraph()
+
+    private fun initializeGraph(): DirectedWeightedPseudograph<Long, DefaultWeightedEdge> {
+        val graph: DirectedWeightedPseudograph<Long, DefaultWeightedEdge> =
+            DirectedWeightedPseudograph(DefaultWeightedEdge::class.java)
+        val locations = locationRepository.findAll().associateBy { it.id }
+
+        val edges = locations.flatMap { (_, location) ->
+            location.links.map {
+                Triple(location.id, it.finish, it.length)
+            }.distinct()
+        }
+
+        locations.forEach { (_, location) ->
+            graph.addVertex(location.id)
+        }
+
+        edges.forEach { (start, finish, length) ->
+            graph.addEdge(start, finish).let {
+                graph.setEdgeWeight(it, length)
+            }
+        }
+
+        return graph
+    }
+
+    fun getRoute(from: Long, to: Long): List<LocationLink> {
+        val routesGraph = this.routesGraph
+        val locations = locationRepository.findAll()
+
+        val pathFinder = DijkstraShortestPath.findPathBetween(routesGraph, from, to)
+        return pathFinder.vertexList.zipWithNext().map {(start, finish) ->
+            LocationLink(
+                start = locations.first { start == it.id }.let { locationConverter.convert(it) },
+                finish = locations.first { finish == it.id }.let { locationConverter.convert(it) },
+                length = routesGraph.getEdgeWeight(routesGraph.getEdge(start, finish))
+            )
+        }
+    }
 
     fun requestBuild(): RequestResponse {
         locationRepository.deleteAll()

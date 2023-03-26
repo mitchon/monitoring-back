@@ -4,6 +4,7 @@ import com.komarov.osmgraphapp.models.LocationLink
 import com.komarov.osmgraphapp.models.RequestResponse
 import com.komarov.osmgraphapp.services.RoadwaysGraphService
 import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 
@@ -20,5 +21,10 @@ class GraphController(
     @GetMapping("/graph")
     fun getWays(): List<LocationLink> {
         return roadwaysGraphService.requestGraph()
+    }
+
+    @GetMapping("/dijkstra/{start}/{finish}")
+    fun getRoute(@PathVariable start: Long, @PathVariable finish: Long): List<LocationLink> {
+        return roadwaysGraphService.getRoute(start, finish)
     }
 }
