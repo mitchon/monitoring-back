@@ -129,6 +129,7 @@ class RoadwaysGraphService(
                     way['highway' = 'primary'];
                     way['highway' = 'secondary'];
                     way['highway' = 'tertiary'];
+                    way['highway' = 'residential'];
                 );
                 out meta;
             """.trimIndent(),
