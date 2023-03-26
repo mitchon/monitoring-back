@@ -1,4 +1,4 @@
-package com.komarov.osmgraphapp.controllers
+package com.komarov.osmgraphapp.converters
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.komarov.osmgraphapp.models.BoundingBoxTemplate

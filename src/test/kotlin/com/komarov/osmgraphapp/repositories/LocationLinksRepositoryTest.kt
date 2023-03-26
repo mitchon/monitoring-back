@@ -1,15 +1,16 @@
 package com.komarov.osmgraphapp.repositories
 
-import com.komarov.osmgraphapp.entities.WayEntity
+import com.komarov.osmgraphapp.entities.LocationEntity
+import com.komarov.osmgraphapp.entities.LocationLinkEntity
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 
 @SpringBootTest
-class WayRepositoryTest(
+class LocationLinksRepositoryTest(
     @Autowired
-    private val repository: WayRepository
+    private val repository: LocationLinkRepository
 ) {
     @Test
     fun findAll() {
@@ -19,7 +20,13 @@ class WayRepositoryTest(
 
     @Test
     fun insertBatch() {
-        val values = listOf(WayEntity(id = 3))
-        repository.insertBatch(values)
+        val values = listOf(LocationLinkEntity(1, 2, 1.0))
+        val result = repository.insertBatch(values)
+        Assertions.assertNotNull(result)
+    }
+
+    @Test
+    fun deleteAll() {
+        repository.deleteAll()
     }
 }

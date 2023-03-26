@@ -1,15 +1,15 @@
 package com.komarov.osmgraphapp.repositories
 
-import com.komarov.osmgraphapp.entities.NodeEntity
+import com.komarov.osmgraphapp.entities.LocationEntity
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 
 @SpringBootTest
-class NodeRepositoryTest(
+class LocationRepositoryTest(
     @Autowired
-    private val repository: NodeRepository
+    private val repository: LocationRepository
 ) {
     @Test
     fun findAll() {
@@ -19,7 +19,13 @@ class NodeRepositoryTest(
 
     @Test
     fun insertBatch() {
-        val values = listOf(NodeEntity(3, 1, 1.0, 1.0))
+        val values = listOf(LocationEntity(1, 1.0, 1.0), LocationEntity(2, 1.0, 1.0))
         val result = repository.insertBatch(values)
+        Assertions.assertNotNull(result)
+    }
+
+    @Test
+    fun deleteAll() {
+        repository.deleteAll()
     }
 }
