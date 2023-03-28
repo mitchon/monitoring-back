@@ -75,9 +75,9 @@ class RoadwaysGraphService(
     }
 
     fun requestBuild(): RequestResponse {
-        locationRepository.deleteAll()
-        locationLinkRepository.deleteAll()
         val requestId = UUID.randomUUID()
+        if (locationRepository.findAll().isNotEmpty())
+            return RequestResponse(requestId)
         logger.info("Started build by request $requestId")
         val roads = requestRoads()
         logger.info("Got all roads by request $requestId")
@@ -189,6 +189,7 @@ class RoadwaysGraphService(
                     way['highway' = 'tertiary'];
                     way['highway' = 'residential'];
                     way['highway' = 'living_street'];
+                    way['highway' = 'unclassified'];
                 );
                 out meta;
             """.trimIndent(),
