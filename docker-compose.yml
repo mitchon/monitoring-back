@@ -9,5 +9,11 @@ services:
       - POSTGRES_PASSWORD=root
     ports:
       - 5432:5432
-#    volumes:
-#      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    volumes:
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+      - master-db-data:/pgdata
+
+volumes:
+  master-db-data:
+    name: master-db-data
+    external: true
