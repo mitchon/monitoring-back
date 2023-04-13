@@ -22,6 +22,10 @@ interface LocationLinkEntityJdbiRepository {
     fun findAll(): List<LocationLinkEntity>
 
     @RegisterKotlinMapper(LocationLinkEntity::class)
+    @SqlQuery("select * from master.location_links where start = ?")
+    fun findByStartId(startId: Long): List<LocationLinkEntity>
+
+    @RegisterKotlinMapper(LocationLinkEntity::class)
     @SqlUpdate("delete from master.location_links where true")
     fun deleteAll()
 }
@@ -33,6 +37,7 @@ class LocationLinkRepository(
 ) {
     private var jdbiRepository = jdbi.onDemand(LocationLinkEntityJdbiRepository::class.java)
     fun findAll() = jdbiRepository.findAll()
+    fun findByStartId(startId: Long) = jdbiRepository.findByStartId(startId)
     fun insertBatch(links: List<LocationLinkEntity>) {
         jdbiRepository.insertBatch(links)
         applicationEventPublisher.publishEvent(LocationsUpdateEvent())

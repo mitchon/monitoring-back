@@ -43,6 +43,12 @@ interface LocationEntityJdbiRepository {
     fun findAll(): List<LocationEntity>
 
     @RegisterKotlinMapper(LocationEntity::class)
+    @RegisterKotlinMapper(LocationLinkEntity::class)
+    @SqlQuery("select * from master.locations l left join master.location_links ll on l.id = ll.start where l.id = ?")
+    @UseRowReducer(LocationLinkReducer::class)
+    fun findById(id: Long): LocationEntity?
+
+    @RegisterKotlinMapper(LocationEntity::class)
     @SqlUpdate("delete from master.locations where true")
     fun deleteAll()
 }
@@ -53,6 +59,7 @@ class LocationRepository(
 ) {
     private var jdbiRepository = jdbi.onDemand(LocationEntityJdbiRepository::class.java)
     fun findAll() = jdbiRepository.findAll()
+    fun findById(id: Long) = jdbiRepository.findById(id)
     fun insertBatch(locations: List<LocationEntity>) = jdbiRepository.insertBatch(locations)
     fun deleteAll() = jdbiRepository.deleteAll()
 }

@@ -1,7 +1,12 @@
 package com.komarov.osmgraphapp.services
 
-import com.fasterxml.jackson.databind.ObjectMapper
+import com.komarov.osmgraphapp.components.AStarAlgorithm
+import com.komarov.osmgraphapp.components.EuclideanDistance
+import com.komarov.osmgraphapp.components.GraphAbstractAlgorithm
+import com.komarov.osmgraphapp.components.Vertex
+import com.komarov.osmgraphapp.converters.EdgeConverter
 import com.komarov.osmgraphapp.converters.LocationConverter
+import com.komarov.osmgraphapp.converters.VertexConverter
 import com.komarov.osmgraphapp.entities.LocationEntity
 import com.komarov.osmgraphapp.entities.LocationLinkEntity
 import com.komarov.osmgraphapp.handlers.NodesHandler
@@ -9,19 +14,9 @@ import com.komarov.osmgraphapp.handlers.WaysHandler
 import com.komarov.osmgraphapp.models.*
 import com.komarov.osmgraphapp.repositories.LocationRepository
 import com.komarov.osmgraphapp.repositories.LocationLinkRepository
-import com.komarov.osmgraphapp.utils.LocationsUpdateEvent
 import de.westnordost.osmapi.overpass.OverpassMapDataApi
-import org.jgrapht.alg.interfaces.AStarAdmissibleHeuristic
-import org.jgrapht.alg.shortestpath.AStarShortestPath
-import org.jgrapht.alg.shortestpath.DijkstraShortestPath
-import org.jgrapht.graph.DefaultWeightedEdge
-import org.jgrapht.graph.DirectedWeightedPseudograph
 import org.slf4j.LoggerFactory
-import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.scheduling.TaskScheduler
 import org.springframework.stereotype.Service
-import org.springframework.transaction.event.TransactionPhase
-import org.springframework.transaction.event.TransactionalEventListener
 import java.time.Instant
 import java.util.UUID
 import kotlin.math.*
@@ -29,68 +24,39 @@ import kotlin.math.*
 @Service
 class RoadwaysGraphService(
     private val overpass: OverpassMapDataApi,
-    private val objectMapper: ObjectMapper,
     private val locationRepository: LocationRepository,
     private val locationLinkRepository: LocationLinkRepository,
     private val locationConverter: LocationConverter,
-    @Autowired
-    private val taskScheduler: TaskScheduler
+    private val vertexConverter: VertexConverter,
+    private val edgeConverter: EdgeConverter
 ) {
     private val logger = LoggerFactory.getLogger(this::class.java)
     private val boundingBox = BoundingBoxTemplate.maxBoundingBox
-    private var routesGraph: DirectedWeightedPseudograph<Long, DefaultWeightedEdge> = initializeGraph()
-
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
-    fun reinit(event: LocationsUpdateEvent) {
-        taskScheduler.schedule({ routesGraph = initializeGraph() }, Instant.now())
-    }
-
-    private fun initializeGraph(): DirectedWeightedPseudograph<Long, DefaultWeightedEdge> {
-        val graph: DirectedWeightedPseudograph<Long, DefaultWeightedEdge> =
-            DirectedWeightedPseudograph(DefaultWeightedEdge::class.java)
-        val locations = locationRepository.findAll().associateBy { it.id }
-
-        val edges = locations.flatMap { (_, location) ->
-            location.links.map {
-                Triple(location.id, it.finish, it.length)
-            }.distinct()
-        }
-
-        locations.forEach { (_, location) ->
-            graph.addVertex(location.id)
-        }
-
-        edges.forEach { (start, finish, length) ->
-            graph.addEdge(start, finish).let {
-                graph.setEdgeWeight(it, length)
-            }
-        }
-
-        return graph
-    }
 
     fun getRoute(from: Long, to: Long): List<LocationLink> {
-        val routesGraph = this.routesGraph
-        val locations = locationRepository.findAll()
-
-        val heuristics = AStarAdmissibleHeuristic<Long> { v1, v2 ->
-            val vertex1 = locations.first { it.id == v1 }
-            val vertex2 = locations.first { it.id == v2 }
-            val v1X = vertex1.longitude - 65
-            val v1Y = vertex1.latitude - 49
-            val v2X = vertex2.longitude - 65
-            val v2Y = vertex2.latitude - 49
-            sqrt((v2X - v1X).pow(2.0) + (v2Y - v1Y).pow(2.0))
+        val start = locationRepository.findById(from)?.let {
+            vertexConverter.convert(it)
         }
-        val algorithm = AStarShortestPath(routesGraph, heuristics)
-        val pathFinder = algorithm.getPath(from, to)
-        return pathFinder.vertexList.zipWithNext().map {(start, finish) ->
+        val goal = locationRepository.findById(to)?.let {
+            vertexConverter.convert(it)
+        }
+        if (start == null || goal == null)
+            throw RuntimeException("BadArgumentException, from or to locations are not found")
+        val heuristic = EuclideanDistance()
+        val algorithm = AStarAlgorithm<LocationLinkEntity, LocationEntity>(heuristic)
+        val route = algorithm.getRoute(start, goal) { current ->
+            locationLinkRepository.findByStartId(current.backing.id).map {
+                edgeConverter.convert(it)
+            }
+        }
+        return route?.map {
+            val link = it.backing
             LocationLink(
-                start = locations.first { start == it.id }.let { locationConverter.convert(it) },
-                finish = locations.first { finish == it.id }.let { locationConverter.convert(it) },
-                length = routesGraph.getEdgeWeight(routesGraph.getEdge(start, finish))
+                start = locationRepository.findById(link.start)!!.let { locationConverter.convert(it) },
+                finish = locationRepository.findById(link.finish)!!.let { locationConverter.convert(it) },
+                length = link.length
             )
-        }
+        } ?: throw RuntimeException("Route not found")
     }
 
     fun requestBuild(): RequestResponse {
