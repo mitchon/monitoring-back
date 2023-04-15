@@ -2,9 +2,6 @@ package com.komarov.osmgraphapp.services
 
 import com.komarov.osmgraphapp.components.AStarAlgorithm
 import com.komarov.osmgraphapp.components.EuclideanDistance
-import com.komarov.osmgraphapp.components.GraphAbstractAlgorithm
-import com.komarov.osmgraphapp.components.Vertex
-import com.komarov.osmgraphapp.converters.EdgeConverter
 import com.komarov.osmgraphapp.converters.LocationConverter
 import com.komarov.osmgraphapp.converters.VertexConverter
 import com.komarov.osmgraphapp.entities.LocationEntity
@@ -19,6 +16,7 @@ import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import java.time.Instant
 import java.util.UUID
+import java.util.concurrent.CompletableFuture
 import kotlin.math.*
 
 @Service
@@ -28,10 +26,11 @@ class RoadwaysGraphService(
     private val locationLinkRepository: LocationLinkRepository,
     private val locationConverter: LocationConverter,
     private val vertexConverter: VertexConverter,
-    private val edgeConverter: EdgeConverter
 ) {
     private val logger = LoggerFactory.getLogger(this::class.java)
     private val boundingBox = BoundingBoxTemplate.maxBoundingBox
+
+    private var task = CompletableFuture<RequestResponse>()
 
     fun getRoute(from: Long, to: Long): List<LocationLink> {
         val start = locationRepository.findById(from)?.let {
@@ -43,23 +42,26 @@ class RoadwaysGraphService(
         if (start == null || goal == null)
             throw RuntimeException("BadArgumentException, from or to locations are not found")
         val heuristic = EuclideanDistance()
-        val algorithm = AStarAlgorithm<LocationLinkEntity, LocationEntity>(heuristic)
+        val algorithm = AStarAlgorithm<Long>(heuristic)
         val route = algorithm.getRoute(start, goal) { current ->
-            locationLinkRepository.findByStartId(current.backing.id).map {
-                edgeConverter.convert(it)
+            locationLinkRepository.findByStartId(current.id).map {
+                locationRepository.findById(it.finish)!!.let {
+                    vertexConverter.convert(it)
+                }
             }
         }
-        return route?.map {
-            val link = it.backing
+        return route?.zipWithNext()?.map {
+            val start = locationRepository.findById(it.first.id)!!.let { locationConverter.convert(it) }
+            val finish = locationRepository.findById(it.second.id)!!.let { locationConverter.convert(it) }
             LocationLink(
-                start = locationRepository.findById(link.start)!!.let { locationConverter.convert(it) },
-                finish = locationRepository.findById(link.finish)!!.let { locationConverter.convert(it) },
-                length = link.length
+                start = start,
+                finish = finish,
+                length = countDistance(start, finish)
             )
         } ?: throw RuntimeException("Route not found")
     }
 
-    fun requestBuild(): RequestResponse {
+    private fun requestBuildBody(): RequestResponse {
         val requestId = UUID.randomUUID()
         if (locationRepository.findAll().isNotEmpty())
             return RequestResponse(requestId)
@@ -85,6 +87,13 @@ class RoadwaysGraphService(
         locationLinkRepository.insertBatch(locationLinkEntities)
         logger.info("Request $requestId is fulfilled")
         return RequestResponse(requestId)
+    }
+
+    fun requestBuild(): RequestResponse {
+        if (task.isDone)
+            return task.get()
+        task.complete(requestBuildBody())
+        return task.get()
     }
 
     fun requestGraph(): List<LocationLink> {
@@ -141,10 +150,7 @@ class RoadwaysGraphService(
 
         if (!this.oneway) {
             secondary = locations.reversed().zipWithNext().map { link ->
-                val length = acos(
-                    sin(link.first.latitude)*sin(link.second.latitude)+
-                        cos(link.first.latitude)*cos(link.second.latitude)*cos(link.second.longitude-link.first.longitude)
-                ) * 6371
+                val length = countDistance(link.first, link.second)
                 val newLink = LocationLink(
                     start = link.first,
                     finish = link.second,
@@ -190,5 +196,18 @@ class RoadwaysGraphService(
                 oneway = oneway || roundabout
             )
         }.distinctBy { it.id }
+    }
+
+    private fun countDistance(a: Location, b: Location): Double {
+        val earthRadius = 6371000.0 // in meters
+        val latDiff = Math.toRadians(b.latitude - a.latitude)
+        val lonDiff = Math.toRadians(b.longitude - a.longitude)
+        val aLat = Math.toRadians(a.latitude)
+        val bLat = Math.toRadians(b.latitude)
+        val sinLat = sin(latDiff / 2)
+        val sinLon = sin(lonDiff / 2)
+        val a1 = sinLat * sinLat + cos(aLat) * cos(bLat) * sinLon * sinLon
+        val a2 = 2 * atan2(sqrt(a1), sqrt(1 - a1))
+        return earthRadius * a2
     }
 }

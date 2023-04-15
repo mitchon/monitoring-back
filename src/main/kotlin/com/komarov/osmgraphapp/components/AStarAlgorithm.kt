@@ -1,43 +1,36 @@
 package com.komarov.osmgraphapp.components
 
-import org.springframework.stereotype.Component
+import org.slf4j.LoggerFactory
 import java.util.*
 import kotlin.math.*
 
-abstract class GraphAbstractAlgorithm<TEdge, TVertex> {
+abstract class GraphAbstractAlgorithm<TVertex> {
 
     abstract fun getRoute (
-        start: Vertex<TEdge, TVertex>,
-        goal: Vertex<TEdge, TVertex>,
-        outgoingEdges: (Vertex<TEdge, TVertex>) -> List<Edge<TEdge, TVertex>>
-    ): List<Edge<TEdge, TVertex>>?
+        start: Vertex<TVertex>,
+        goal: Vertex<TVertex>,
+        neighbors: (Vertex<TVertex>) -> List<Vertex<TVertex>>
+    ): List<Vertex<TVertex>>?
 }
 
-class Vertex<TEdge, TVertex> (
-    val backing: TVertex,
+class Vertex<TVertex> (
+    val id: TVertex,
     val lat: Double,
     val lon: Double,
     var g: Double = Double.MAX_VALUE,
     var h: Double = 0.0,
-    var parentEdge: Edge<TEdge, TVertex>? = null
+    var parent: Vertex<TVertex>? = null
 ) {
     val f: Double
         get() = g + h
 }
 
-class Edge<TEdge, TVertex> (
-    val backing: TEdge,
-    val start: Vertex<TEdge, TVertex>,
-    val finish: Vertex<TEdge, TVertex>,
-    val length: Double
-)
-
 sealed interface Heuristic {
-    fun getEstimation(a: Vertex<*, *>, b: Vertex<*, *>): Double
+    fun getEstimation(a: Vertex<*>, b: Vertex<*>): Double
 }
 
 open class EuclideanDistance: Heuristic {
-    override fun getEstimation(a: Vertex<*, *>, b: Vertex<*, *>): Double {
+    override fun getEstimation(a: Vertex<*>, b: Vertex<*>): Double {
         val earthRadius = 6371000.0 // in meters
         val latDiff = Math.toRadians(b.lat - a.lat)
         val lonDiff = Math.toRadians(b.lon - a.lon)
@@ -51,17 +44,19 @@ open class EuclideanDistance: Heuristic {
     }
 }
 
-class AStarAlgorithm<TEdge, TVertex>(
+class AStarAlgorithm<TVertex>(
     private val heuristic: Heuristic
-): GraphAbstractAlgorithm<TEdge, TVertex>() {
+): GraphAbstractAlgorithm<TVertex>() {
+
+    private val logger = LoggerFactory.getLogger(this::class.java)
 
     override fun getRoute(
-        start: Vertex<TEdge, TVertex>,
-        goal: Vertex<TEdge, TVertex>,
-        outgoingEdges: (Vertex<TEdge, TVertex>) -> List<Edge<TEdge, TVertex>>
-    ): List<Edge<TEdge, TVertex>>? {
-        val openList = PriorityQueue<Vertex<TEdge, TVertex>>(compareBy { it.f })
-        val closedSet = mutableSetOf<Vertex<TEdge, TVertex>>()
+        start: Vertex<TVertex>,
+        goal: Vertex<TVertex>,
+        neighbors: (Vertex<TVertex>) -> List<Vertex<TVertex>>
+    ): List<Vertex<TVertex>>? {
+        val openList = PriorityQueue<Vertex<TVertex>>(compareBy { it.f })
+        val closedSet = mutableSetOf<Vertex<TVertex>>()
 
         start.g = 0.0
         start.h = heuristic.getEstimation(start, goal)
@@ -70,24 +65,28 @@ class AStarAlgorithm<TEdge, TVertex>(
 
         while (openList.isNotEmpty()) {
             val current = openList.poll()
+            logger.info("current ${current.id} f=${current.f} h=${current.h}")
 
-            if (current == goal)
+            if (current.id == goal.id)
                 return buildPath(current)
 
             closedSet.add(current)
 
-            for (edge in outgoingEdges(current)) {
-                val neighbor = edge.finish
-                val score = current.g + edge.length
+            for (neighbor in neighbors(current)) {
+                val distance = heuristic.getEstimation(current, neighbor)
+                logger.info("neighbor of ${current.id} ${neighbor.id}")
+                val score = current.g + distance
 
-                if (neighbor in closedSet && score >= neighbor.g)
+                if (closedSet.map { it.id }.contains(neighbor.id)) {
+                    logger.info("skip")
                     continue
+                }
 
-                neighbor.parentEdge = edge
+                neighbor.parent = current
                 neighbor.g = score
                 neighbor.h = heuristic.getEstimation(neighbor, goal)
 
-                if (neighbor !in openList) {
+                if (!openList.map { it.id }.contains(neighbor.id)) {
                     openList.add(neighbor)
                 }
             }
@@ -96,12 +95,12 @@ class AStarAlgorithm<TEdge, TVertex>(
         return null
     }
 
-    private fun buildPath(current: Vertex<TEdge, TVertex>): List<Edge<TEdge, TVertex>> {
-        val path = mutableListOf<Edge<TEdge, TVertex>>()
-        var temp: Edge<TEdge, TVertex>? = current.parentEdge
+    private fun buildPath(current: Vertex<TVertex>): List<Vertex<TVertex>> {
+        val path = mutableListOf<Vertex<TVertex>>()
+        var temp: Vertex<TVertex>? = current.parent
         while (temp != null) {
             path.add(0, temp)
-            temp = temp.start.parentEdge
+            temp = temp.parent
         }
         return path
     }
