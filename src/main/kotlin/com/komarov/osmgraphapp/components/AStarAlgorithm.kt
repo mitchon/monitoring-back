@@ -9,7 +9,7 @@ abstract class GraphAbstractAlgorithm<TVertex> {
     abstract fun getRoute (
         start: Vertex<TVertex>,
         goal: Vertex<TVertex>,
-        neighbors: (Vertex<TVertex>) -> List<Vertex<TVertex>>
+        neighbors: (Vertex<TVertex>) -> List<Pair<Vertex<TVertex>, Double>>
     ): List<Vertex<TVertex>>?
 }
 
@@ -53,10 +53,10 @@ class AStarAlgorithm<TVertex>(
     override fun getRoute(
         start: Vertex<TVertex>,
         goal: Vertex<TVertex>,
-        neighbors: (Vertex<TVertex>) -> List<Vertex<TVertex>>
+        neighbors: (Vertex<TVertex>) -> List<Pair<Vertex<TVertex>, Double>>
     ): List<Vertex<TVertex>>? {
         val openList = PriorityQueue<Vertex<TVertex>>(compareBy { it.f })
-        val closedSet = mutableSetOf<Vertex<TVertex>>()
+        val closedSet = mutableMapOf<TVertex, Double>()
 
         start.g = 0.0
         start.h = heuristic.getEstimation(start, goal)
@@ -65,28 +65,26 @@ class AStarAlgorithm<TVertex>(
 
         while (openList.isNotEmpty()) {
             val current = openList.poll()
-            logger.info("current ${current.id} f=${current.f} h=${current.h}")
 
             if (current.id == goal.id)
                 return buildPath(current)
 
-            closedSet.add(current)
+            closedSet[current.id] = current.g
 
-            for (neighbor in neighbors(current)) {
-                val distance = heuristic.getEstimation(current, neighbor)
-                logger.info("neighbor of ${current.id} ${neighbor.id}")
-                val score = current.g + distance
+            for (neighborWithWeight in neighbors(current)) {
+                val neighbor = neighborWithWeight.first
+                val weight = neighborWithWeight.second
+                val score = current.g + weight
 
-                if (closedSet.map { it.id }.contains(neighbor.id)) {
-                    logger.info("skip")
+                val previousG = closedSet[neighbor.id] ?: neighbor.g
+                if (closedSet[neighbor.id] != null && score >= previousG)
                     continue
-                }
 
                 neighbor.parent = current
                 neighbor.g = score
                 neighbor.h = heuristic.getEstimation(neighbor, goal)
 
-                if (!openList.map { it.id }.contains(neighbor.id)) {
+                if (openList.firstOrNull { it.id == neighbor.id } == null) {
                     openList.add(neighbor)
                 }
             }

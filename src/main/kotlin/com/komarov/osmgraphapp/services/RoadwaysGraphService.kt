@@ -44,9 +44,9 @@ class RoadwaysGraphService(
         val heuristic = EuclideanDistance()
         val algorithm = AStarAlgorithm<Long>(heuristic)
         val route = algorithm.getRoute(start, goal) { current ->
-            locationLinkRepository.findByStartId(current.id).map {
-                locationRepository.findById(it.finish)!!.let {
-                    vertexConverter.convert(it)
+            locationRepository.findById(current.id)!!.links.map { ll ->
+                locationRepository.findById(ll.finish)!!.let {
+                    (vertexConverter.convert(it) to ll.length)
                 }
             }
         }
@@ -56,7 +56,7 @@ class RoadwaysGraphService(
             LocationLink(
                 start = start,
                 finish = finish,
-                length = countDistance(start, finish)
+                length = 0.0
             )
         } ?: throw RuntimeException("Route not found")
     }
