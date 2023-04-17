@@ -1,10 +1,13 @@
 package com.komarov.osmgraphapp.configs
 
+import com.fasterxml.jackson.databind.ObjectMapper
 import org.jdbi.v3.core.Jdbi
 import org.jdbi.v3.core.kotlin.KotlinPlugin
+import org.jdbi.v3.jackson2.Jackson2Config
 import org.jdbi.v3.postgres.PostgresPlugin
 import org.jdbi.v3.sqlobject.SqlObjectPlugin
 import org.jdbi.v3.sqlobject.kotlin.KotlinSqlObjectPlugin
+import org.jdbi.v3.jackson2.Jackson2Plugin
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -14,7 +17,9 @@ import javax.sql.DataSource
 
 
 @Configuration
-class JdbiConfig {
+class JdbiConfig(
+    private val objectMapper: ObjectMapper
+) {
     @Bean
     @ConfigurationProperties(prefix = "spring.datasource")
     fun dataSource(): DataSource = DriverManagerDataSource()
@@ -33,6 +38,8 @@ class JdbiConfig {
         jdbi.installPlugin(SqlObjectPlugin())
         jdbi.installPlugin(KotlinSqlObjectPlugin())
         jdbi.installPlugin(PostgresPlugin())
+        jdbi.installPlugin(Jackson2Plugin())
+        jdbi.getConfig(Jackson2Config::class.java).mapper = objectMapper
         return jdbi
     }
 }

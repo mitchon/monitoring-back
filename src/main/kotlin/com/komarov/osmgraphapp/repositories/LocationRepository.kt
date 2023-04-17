@@ -14,22 +14,6 @@ import org.jdbi.v3.sqlobject.statement.UseRowReducer
 import org.springframework.stereotype.Repository
 import java.util.*
 
-
-class LocationLinkReducer: LinkedHashMapRowReducer<Long, LocationEntity> {
-    override fun accumulate(container: MutableMap<Long, LocationEntity>, rowView: RowView) {
-        val location: LocationEntity = container.computeIfAbsent(
-            rowView.getColumn("id", Long::class.javaObjectType)
-        ) {
-            rowView.getRow(LocationEntity::class.java)
-        }
-
-        if (rowView.getColumn("start", Long::class.javaObjectType) != null) {
-            location.links.add(rowView.getRow(LocationLinkEntity::class.java))
-        }
-    }
-
-}
-
 interface LocationEntityJdbiRepository {
 
     @RegisterKotlinMapper(LocationEntity::class)
@@ -37,15 +21,11 @@ interface LocationEntityJdbiRepository {
     fun insertBatch(@BindBean locations: List<LocationEntity>)
 
     @RegisterKotlinMapper(LocationEntity::class)
-    @RegisterKotlinMapper(LocationLinkEntity::class)
-    @SqlQuery("select * from master.locations l left join master.location_links ll on l.id = ll.start")
-    @UseRowReducer(LocationLinkReducer::class)
+    @SqlQuery("select * from master.locations")
     fun findAll(): List<LocationEntity>
 
     @RegisterKotlinMapper(LocationEntity::class)
-    @RegisterKotlinMapper(LocationLinkEntity::class)
-    @SqlQuery("select * from master.locations l left join master.location_links ll on l.id = ll.start where l.id = ?")
-    @UseRowReducer(LocationLinkReducer::class)
+    @SqlQuery("select * from master.locations where id = ?")
     fun findById(id: Long): LocationEntity?
 
     @RegisterKotlinMapper(LocationEntity::class)

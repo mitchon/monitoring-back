@@ -1,11 +1,10 @@
 package com.komarov.osmgraphapp.services
 
-import com.komarov.osmgraphapp.components.AStarAlgorithm
-import com.komarov.osmgraphapp.components.EuclideanDistance
 import com.komarov.osmgraphapp.converters.LocationConverter
-import com.komarov.osmgraphapp.converters.VertexConverter
+import com.komarov.osmgraphapp.converters.LocationLinkConverter
 import com.komarov.osmgraphapp.entities.LocationEntity
 import com.komarov.osmgraphapp.entities.LocationLinkEntity
+import com.komarov.osmgraphapp.entities.LocationLinkInsertableEntity
 import com.komarov.osmgraphapp.handlers.NodesHandler
 import com.komarov.osmgraphapp.handlers.WaysHandler
 import com.komarov.osmgraphapp.models.*
@@ -14,7 +13,6 @@ import com.komarov.osmgraphapp.repositories.LocationLinkRepository
 import de.westnordost.osmapi.overpass.OverpassMapDataApi
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
-import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
 import kotlin.math.*
@@ -25,41 +23,12 @@ class RoadwaysGraphService(
     private val locationRepository: LocationRepository,
     private val locationLinkRepository: LocationLinkRepository,
     private val locationConverter: LocationConverter,
-    private val vertexConverter: VertexConverter,
+    private val locationLinkConverter: LocationLinkConverter
 ) {
     private val logger = LoggerFactory.getLogger(this::class.java)
     private val boundingBox = BoundingBoxTemplate.maxBoundingBox
 
     private var task = CompletableFuture<RequestResponse>()
-
-    fun getRoute(from: Long, to: Long): List<LocationLink> {
-        val start = locationRepository.findById(from)?.let {
-            vertexConverter.convert(it)
-        }
-        val goal = locationRepository.findById(to)?.let {
-            vertexConverter.convert(it)
-        }
-        if (start == null || goal == null)
-            throw RuntimeException("BadArgumentException, from or to locations are not found")
-        val heuristic = EuclideanDistance()
-        val algorithm = AStarAlgorithm<Long>(heuristic)
-        val route = algorithm.getRoute(start, goal) { current ->
-            locationRepository.findById(current.id)!!.links.map { ll ->
-                locationRepository.findById(ll.finish)!!.let {
-                    (vertexConverter.convert(it) to ll.length)
-                }
-            }
-        }
-        return route?.zipWithNext()?.map {
-            val start = locationRepository.findById(it.first.id)!!.let { locationConverter.convert(it) }
-            val finish = locationRepository.findById(it.second.id)!!.let { locationConverter.convert(it) }
-            LocationLink(
-                start = start,
-                finish = finish,
-                length = 0.0
-            )
-        } ?: throw RuntimeException("Route not found")
-    }
 
     private fun requestBuildBody(): RequestResponse {
         val requestId = UUID.randomUUID()
@@ -68,21 +37,16 @@ class RoadwaysGraphService(
         logger.info("Started build by request $requestId")
         val roads = requestRoads()
         logger.info("Got all roads by request $requestId")
-        val locations = roads.flatMap { it.requestLocations() }
-            .groupBy { it.id }.map {
-                it.value.first().copy(
-                    links = it.value.flatMap { it.links }
-                )
-            }
+        val locationsWithLinks = roads.map { it.requestLocations() }
+        val locations = locationsWithLinks.flatMap { it.first }.distinctBy { it.id }
+        val links = locationsWithLinks.flatMap { it.second }.distinctBy { (it.start.id to it.finish.id) }
         logger.info("Inserting by request $requestId")
         val locationEntities = locations.map {
             LocationEntity.fromModel(it)
         }
         locationRepository.insertBatch(locationEntities)
-        val locationLinkEntities = locations.flatMap {
-            it.links.map {
-                LocationLinkEntity.fromModel(it)
-            }
+        val locationLinkEntities = links.map {
+            LocationLinkInsertableEntity.fromModel(it)
         }
         locationLinkRepository.insertBatch(locationLinkEntities)
         logger.info("Request $requestId is fulfilled")
@@ -97,19 +61,13 @@ class RoadwaysGraphService(
     }
 
     fun requestGraph(): List<LocationLink> {
-        val locations = locationRepository.findAll()
-        return locations.flatMap {
-            it.links.map { link ->
-                LocationLink(
-                    start = locations.first { it.id == link.start }.let { locationConverter.convert(it) },
-                    finish = locations.first { it.id == link.finish }.let { locationConverter.convert(it) },
-                    length = link.length
-                )
-            }
+        val links = locationLinkRepository.findAll()
+        return links.map {
+            locationLinkConverter.convert(it)
         }
     }
 
-    private fun Road.requestLocations(): List<Location> {
+    private fun Road.requestLocations(): Pair<List<Location>, List<LocationLink>> {
         val nodesHandler = NodesHandler()
         val nodes: MutableMap<Long, Location?> = this.nodes.associateWith { null }.toMutableMap()
         overpass.queryElements(
@@ -130,44 +88,31 @@ class RoadwaysGraphService(
             nodes[location.id] = location
         }
         val locations = nodes.values.filterNotNull()
-        if (locations.isEmpty()) return listOf()
-        val primary = locations.zipWithNext().map { link ->
-            val length = acos(
-                sin(link.first.latitude)*sin(link.second.latitude)+
-                    cos(link.first.latitude)*cos(link.second.latitude)*cos(link.second.longitude-link.first.longitude)
-            ) * 6371
-            val newLink = LocationLink(
+        if (locations.isEmpty()) return (listOf<Location>() to listOf<LocationLink>())
+        val primaryDirLinks = locations.zipWithNext().map { link ->
+            val length = countDistance(link.first, link.second)
+            LocationLink(
                 start = link.first,
                 finish = link.second,
                 length = length
             )
-            link.first.copy(
-                links = link.first.links + newLink
-            )
-        } + locations.last()
+        }
 
-        var secondary = listOf<Location>()
+        var secondaryDirLinks = listOf<LocationLink>()
 
         if (!this.oneway) {
-            secondary = locations.reversed().zipWithNext().map { link ->
+            secondaryDirLinks = locations.reversed().zipWithNext().map { link ->
                 val length = countDistance(link.first, link.second)
-                val newLink = LocationLink(
+                LocationLink(
                     start = link.first,
                     finish = link.second,
                     length = length
                 )
-                link.first.copy(
-                    links = link.first.links + newLink
-                )
-            } + locations.first()
+            }
         }
 
         logger.info("Got all nodes for way ${this.id}")
-        return (primary + secondary).groupBy { it.id }.map {
-            it.value.first().copy(
-                links = it.value.flatMap { it.links }
-            )
-        }
+        return (locations to primaryDirLinks + secondaryDirLinks)
     }
 
     private fun requestRoads(): List<Road> {

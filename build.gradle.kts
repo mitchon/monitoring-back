@@ -26,6 +26,7 @@ dependencies {
     implementation("org.jdbi:jdbi3-kotlin:3.37.1")
     implementation("org.jdbi:jdbi3-kotlin-sqlobject:3.37.1")
     implementation("org.jdbi:jdbi3-postgres:3.37.1")
+    implementation("org.jdbi:jdbi3-jackson2:3.37.1")
     implementation("org.postgresql:postgresql")
     implementation("org.springframework.boot:spring-boot-starter-websocket")
     implementation("org.springframework.boot:spring-boot-starter-security")
