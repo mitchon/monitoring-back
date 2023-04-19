@@ -22,6 +22,8 @@ class ShortestPathService(
 ) {
     private val stopWatch = StopWatch()
     private val logger = LoggerFactory.getLogger(this::class.java)
+    private val heuristic = EuclideanDistance()
+    private val algorithm = AStarAlgorithm<Long>(heuristic)
 
     fun getRouteAStarDefault(from: Long, to: Long): List<LocationLink> {
         stopWatch.start("default algorithm")
@@ -35,20 +37,18 @@ class ShortestPathService(
         }
         if (start == null || goal == null)
             throw RuntimeException("BadArgumentException, from or to locations are not found")
-        val heuristic = EuclideanDistance()
-        val algorithm = AStarAlgorithm<Long>(heuristic)
         val route = algorithm.getRoute(start, goal) { current ->
             links.filter { it.start.id == current.id }.map {
                 (vertexConverter.convert(it.finish) to it.length)
             }
         }
+        stopWatch.stop()
+        logger.info("default algorithm ${stopWatch.lastTaskInfo.timeMillis}")
         val linksSet = route?.zipWithNext()?.map {
             links.firstOrNull { ll -> ll.start.id == it.first.id && ll.finish.id == it.second.id }!!.let {
                 locationLinkConverter.convert(it)
             }
         } ?: throw RuntimeException("Route not found")
-        stopWatch.stop()
-        logger.info("default algorithm ${stopWatch.lastTaskInfo.timeMillis}")
         return linksSet
     }
 
@@ -62,20 +62,18 @@ class ShortestPathService(
         }
         if (start == null || goal == null)
             throw RuntimeException("BadArgumentException, from or to locations are not found")
-        val heuristic = EuclideanDistance()
-        val algorithm = AStarAlgorithm<Long>(heuristic)
         val route = algorithm.getRoute(start, goal) { current ->
             locationLinkRepository.findByStartId(current.id).map {
                 (vertexConverter.convert(it.finish) to it.length)
             }
         }
-        val linksList = route?.zipWithNext()?.map {
+        stopWatch.stop()
+        logger.info("safe-space algorithm ${stopWatch.lastTaskInfo.timeMillis}")
+        val linksSet = route?.zipWithNext()?.map {
             locationLinkRepository.findByStartIdAndFinishId(it.first.id, it.second.id)?.let {
                 locationLinkConverter.convert(it)
             } ?: throw RuntimeException("Link between ${it.first.id} and ${it.second.id} not found")
         } ?: throw RuntimeException("Route not found")
-        stopWatch.stop()
-        logger.info("safe-space algorithm ${stopWatch.lastTaskInfo.timeMillis}")
-        return linksList
+        return linksSet
     }
 }

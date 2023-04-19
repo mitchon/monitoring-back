@@ -1,16 +1,12 @@
 package com.komarov.osmgraphapp.repositories
 
 import com.komarov.osmgraphapp.entities.LocationEntity
-import com.komarov.osmgraphapp.entities.LocationLinkEntity
 import org.jdbi.v3.core.Jdbi
-import org.jdbi.v3.core.result.LinkedHashMapRowReducer
-import org.jdbi.v3.core.result.RowView
 import org.jdbi.v3.sqlobject.customizer.BindBean
 import org.jdbi.v3.sqlobject.kotlin.RegisterKotlinMapper
 import org.jdbi.v3.sqlobject.statement.SqlBatch
 import org.jdbi.v3.sqlobject.statement.SqlQuery
 import org.jdbi.v3.sqlobject.statement.SqlUpdate
-import org.jdbi.v3.sqlobject.statement.UseRowReducer
 import org.springframework.stereotype.Repository
 import java.util.*
 

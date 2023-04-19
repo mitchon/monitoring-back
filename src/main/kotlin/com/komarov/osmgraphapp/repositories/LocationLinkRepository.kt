@@ -1,8 +1,9 @@
 package com.komarov.osmgraphapp.repositories
 
 import com.komarov.osmgraphapp.entities.LocationEntity
-import com.komarov.osmgraphapp.entities.LocationLinkEntity
+import com.komarov.osmgraphapp.entities.LocationLinkWithLocationsEntity
 import com.komarov.osmgraphapp.entities.LocationLinkInsertableEntity
+import com.komarov.osmgraphapp.entities.LocationLinkWithFinishEntity
 import com.komarov.osmgraphapp.utils.LocationsUpdateEvent
 import org.jdbi.v3.core.Jdbi
 import org.jdbi.v3.core.mapper.RowMapper
@@ -22,46 +23,46 @@ import java.util.*
 
 interface LocationLinkEntityJdbiRepository {
     @RegisterKotlinMapper(LocationLinkInsertableEntity::class)
-    @SqlBatch("insert into master.location_links values (:start, :finish, :length)")
+    @SqlBatch("insert into master.location_links values (:start, :finish, :length, :maxSpeed)")
     fun insertBatch(@BindBean nodes: List<LocationLinkInsertableEntity>)
 
-    @UseRowMapper(LocationLinkMapper::class)
+    @UseRowMapper(LocationLinkWithLocationsMapper::class)
     @SqlQuery("select " +
             "s.id as s_id, s.latitude as s_latitude, s.longitude as s_longitude, " +
             "f.id as f_id, f.latitude as f_latitude, f.longitude as f_longitude, " +
-            "ll.length " +
+            "ll.length, ll.max_speed " +
             "from location_links ll join locations s on ll.start = s.id join locations f on ll.finish = f.id"
     )
-    fun findAll(): List<LocationLinkEntity>
+    fun findAll(): List<LocationLinkWithLocationsEntity>
 
-    @UseRowMapper(LocationLinkMapper::class)
+    @UseRowMapper(LocationLinkWithFinishMapper::class)
     @SqlQuery("select " +
-        "s.id as s_id, s.latitude as s_latitude, s.longitude as s_longitude, " +
+        "s.id as s_id, " +
         "f.id as f_id, f.latitude as f_latitude, f.longitude as f_longitude, " +
-        "ll.length " +
+        "ll.length, ll.max_speed " +
         "from location_links ll join locations s on ll.start = s.id join locations f on ll.finish = f.id " +
         "where s.id = ?"
     )
-    fun findByStartId(startId: Long): List<LocationLinkEntity>
+    fun findByStartId(startId: Long): List<LocationLinkWithFinishEntity>
 
-    @UseRowMapper(LocationLinkMapper::class)
+    @UseRowMapper(LocationLinkWithLocationsMapper::class)
     @SqlQuery("select " +
         "s.id as s_id, s.latitude as s_latitude, s.longitude as s_longitude, " +
         "f.id as f_id, f.latitude as f_latitude, f.longitude as f_longitude, " +
-        "ll.length " +
+        "ll.length, ll.max_speed " +
         "from location_links ll join locations s on ll.start = s.id join locations f on ll.finish = f.id " +
         "where s.id = ? and f.id = ?"
     )
-    fun findByStartIdAndFinishId(startId: Long, finishId: Long): LocationLinkEntity?
+    fun findByStartIdAndFinishId(startId: Long, finishId: Long): LocationLinkWithLocationsEntity?
 
     @SqlUpdate("delete from master.location_links where true")
     fun deleteAll()
 }
 
-class LocationLinkMapper: RowMapper<LocationLinkEntity> {
+class LocationLinkWithLocationsMapper: RowMapper<LocationLinkWithLocationsEntity> {
     @Throws(SQLException::class)
-    override fun map(rs: ResultSet, ctx: StatementContext): LocationLinkEntity {
-        return LocationLinkEntity(
+    override fun map(rs: ResultSet, ctx: StatementContext): LocationLinkWithLocationsEntity {
+        return LocationLinkWithLocationsEntity(
             start = LocationEntity(
                 id = rs.getLong("s_id"),
                 latitude = rs.getDouble("s_latitude"),
@@ -72,7 +73,24 @@ class LocationLinkMapper: RowMapper<LocationLinkEntity> {
                 latitude = rs.getDouble("f_latitude"),
                 longitude = rs.getDouble("f_longitude")
             ),
-            length = rs.getDouble("length")
+            length = rs.getDouble("length"),
+            maxSpeed = rs.getDouble("max_speed")
+        )
+    }
+}
+
+class LocationLinkWithFinishMapper: RowMapper<LocationLinkWithFinishEntity> {
+    @Throws(SQLException::class)
+    override fun map(rs: ResultSet, ctx: StatementContext): LocationLinkWithFinishEntity {
+        return LocationLinkWithFinishEntity(
+            start = rs.getLong("s_id"),
+            finish = LocationEntity(
+                id = rs.getLong("f_id"),
+                latitude = rs.getDouble("f_latitude"),
+                longitude = rs.getDouble("f_longitude")
+            ),
+            length = rs.getDouble("length"),
+            maxSpeed = rs.getDouble("max_speed")
         )
     }
 }
@@ -88,9 +106,9 @@ class LocationLinkRepository(
         jdbiRepository.insertBatch(links)
         applicationEventPublisher.publishEvent(LocationsUpdateEvent())
     }
-    fun findByStartId(startId: Long): List<LocationLinkEntity> = jdbiRepository.findByStartId(startId)
+    fun findByStartId(startId: Long): List<LocationLinkWithFinishEntity> = jdbiRepository.findByStartId(startId)
 
-    fun findByStartIdAndFinishId(startId: Long, finishId: Long): LocationLinkEntity? =
+    fun findByStartIdAndFinishId(startId: Long, finishId: Long): LocationLinkWithLocationsEntity? =
         jdbiRepository.findByStartIdAndFinishId(startId, finishId)
     fun deleteAll() = jdbiRepository.deleteAll()
 }

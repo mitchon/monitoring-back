@@ -3,7 +3,6 @@ package com.komarov.osmgraphapp.services
 import com.komarov.osmgraphapp.converters.LocationConverter
 import com.komarov.osmgraphapp.converters.LocationLinkConverter
 import com.komarov.osmgraphapp.entities.LocationEntity
-import com.komarov.osmgraphapp.entities.LocationLinkEntity
 import com.komarov.osmgraphapp.entities.LocationLinkInsertableEntity
 import com.komarov.osmgraphapp.handlers.NodesHandler
 import com.komarov.osmgraphapp.handlers.WaysHandler
@@ -13,6 +12,7 @@ import com.komarov.osmgraphapp.repositories.LocationLinkRepository
 import de.westnordost.osmapi.overpass.OverpassMapDataApi
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
+import java.lang.Character.isDigit
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
 import kotlin.math.*
@@ -37,7 +37,8 @@ class RoadwaysGraphService(
         logger.info("Started build by request $requestId")
         val roads = requestRoads()
         logger.info("Got all roads by request $requestId")
-        val locationsWithLinks = roads.map { it.requestLocations() }
+        logger.info(roads.map { it.maxSpeed }.distinct().joinToString(","))
+        val locationsWithLinks = roads.stream().map { it.requestLocations() }.toList()
         val locations = locationsWithLinks.flatMap { it.first }.distinctBy { it.id }
         val links = locationsWithLinks.flatMap { it.second }.distinctBy { (it.start.id to it.finish.id) }
         logger.info("Inserting by request $requestId")
@@ -94,7 +95,8 @@ class RoadwaysGraphService(
             LocationLink(
                 start = link.first,
                 finish = link.second,
-                length = length
+                length = length,
+                maxSpeed = countSpeed(this.maxSpeed)
             )
         }
 
@@ -106,7 +108,8 @@ class RoadwaysGraphService(
                 LocationLink(
                     start = link.first,
                     finish = link.second,
-                    length = length
+                    length = length,
+                    maxSpeed = countSpeed(this.maxSpeed)
                 )
             }
         }
@@ -135,10 +138,12 @@ class RoadwaysGraphService(
         return waysHandler.get().map { way ->
             val oneway = way.tags["oneway"]?.let { it == "yes" } ?: false
             val roundabout = way.tags["junction"]?.let { it == "roundabout" } ?: false
+            val maxSpeed = way.tags["maxspeed"]
             Road(
                 id = way.id,
                 nodes = way.nodeIds,
-                oneway = oneway || roundabout
+                oneway = oneway || roundabout,
+                maxSpeed = maxSpeed
             )
         }.distinctBy { it.id }
     }
@@ -154,5 +159,15 @@ class RoadwaysGraphService(
         val a1 = sinLat * sinLat + cos(aLat) * cos(bLat) * sinLon * sinLon
         val a2 = 2 * atan2(sqrt(a1), sqrt(1 - a1))
         return earthRadius * a2
+    }
+
+    private fun countSpeed(tagValue: String?): Double {
+        return if ( !tagValue.isNullOrEmpty() && tagValue.all { isDigit(it) } )
+            tagValue.toDouble()
+        else when (tagValue) {
+            "RU:rural" -> 90.0
+            "RU:urban" -> 110.0
+            else -> 60.0
+        }
     }
 }

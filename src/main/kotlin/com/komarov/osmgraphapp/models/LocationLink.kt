@@ -3,5 +3,6 @@ package com.komarov.osmgraphapp.models
 data class LocationLink (
     val start: Location,
     val finish: Location,
-    val length: Double
+    val length: Double,
+    val maxSpeed: Double
 )

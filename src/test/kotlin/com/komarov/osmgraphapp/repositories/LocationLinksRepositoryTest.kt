@@ -1,7 +1,5 @@
 package com.komarov.osmgraphapp.repositories
 
-import com.komarov.osmgraphapp.entities.LocationEntity
-import com.komarov.osmgraphapp.entities.LocationLinkEntity
 import com.komarov.osmgraphapp.entities.LocationLinkInsertableEntity
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
@@ -21,7 +19,7 @@ class LocationLinksRepositoryTest(
 
     @Test
     fun insertBatch() {
-        val values = listOf(LocationLinkInsertableEntity(1, 2, 1.0))
+        val values = listOf(LocationLinkInsertableEntity(1, 2, 1.0, 1.0))
         val result = repository.insertBatch(values)
         Assertions.assertNotNull(result)
     }
