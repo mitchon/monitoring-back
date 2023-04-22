@@ -71,10 +71,9 @@ class AStarAlgorithm<TVertex>(
 
             closedSet[current.id] = current.g
 
-            for (neighborWithWeight in neighbors(current)) {
+            for (neighborWithWeight in neighbors(current).filter { it.first.id != current.parent }) {
                 val neighbor = neighborWithWeight.first
-                val weight = neighborWithWeight.second
-                val score = current.g + weight
+                val score = current.g + neighborWithWeight.second
 
                 val previousG = closedSet[neighbor.id] ?: neighbor.g
                 if (closedSet[neighbor.id] != null && score >= previousG)
@@ -84,7 +83,7 @@ class AStarAlgorithm<TVertex>(
                 neighbor.g = score
                 neighbor.h = heuristic.getEstimation(neighbor, goal)
 
-                if (openList.firstOrNull { it.id == neighbor.id } == null) {
+                if (!openList.map { it.id }.contains(neighbor.id)) {
                     openList.add(neighbor)
                 }
             }
@@ -94,7 +93,7 @@ class AStarAlgorithm<TVertex>(
     }
 
     private fun buildPath(current: Vertex<TVertex>): List<Vertex<TVertex>> {
-        val path = mutableListOf<Vertex<TVertex>>()
+        val path = mutableListOf<Vertex<TVertex>>(current)
         var temp: Vertex<TVertex>? = current.parent
         while (temp != null) {
             path.add(0, temp)

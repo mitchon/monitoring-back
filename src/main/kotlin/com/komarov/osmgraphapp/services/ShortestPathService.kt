@@ -96,14 +96,12 @@ class ShortestPathService(
             throw RuntimeException("BadArgumentException, from or to locations are not found")
         cachedNeighbors.putAll(locationLinkRepository.findInRadiusAroundId(start.id).groupBy { it.start })
         val route = algorithm.getRoute(start, goal) { current ->
-            val neighboringLinks = cachedNeighbors[current.id] ?: throw RuntimeException("wtf")
-            val result = neighboringLinks.map {
+            val neighboringLinks = cachedNeighbors[current.id] ?: listOf()
+            if (neighboringLinks.any { it.needsReload })
+                cachedNeighbors.putAll(locationLinkRepository.findInRadiusAroundId(current.id).groupBy { it.start })
+            neighboringLinks.map {
                 vertexConverter.convert(it.finish) to it.length
             }
-            neighboringLinks.firstOrNull { it.needsReload }?.let {
-                cachedNeighbors.putAll(locationLinkRepository.findInRadiusAroundId(current.id).groupBy { it.start })
-            }
-            result
         }
         stopWatch.stop()
         logger.info("safe-space cached ${stopWatch.lastTaskInfo.timeMillis}")

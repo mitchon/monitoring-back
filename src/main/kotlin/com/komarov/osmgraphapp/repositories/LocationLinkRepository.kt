@@ -48,7 +48,7 @@ interface LocationLinkEntityJdbiRepository {
         "select " +
         "st_distancesphere(" +
         "geometry(point(f.longitude, f.latitude)), geometry(point(center.longitude, center.latitude))" +
-        ") > 750 as needs_reload, " +
+        ") > 5000 as needs_reload, " +
         "s.id as s_id, " +
         "f.id as f_id, f.latitude as f_latitude, f.longitude as f_longitude, " +
         "ll.length, ll.max_speed " +
@@ -56,7 +56,7 @@ interface LocationLinkEntityJdbiRepository {
         "join center on 1=1 " +
         "where st_distancesphere(" +
         "geometry(point(s.longitude, s.latitude)), geometry(point(center.longitude, center.latitude))" +
-        ") <= 750")
+        ") <= 5000")
     fun findInRadiusAroundId(id: Long): List<LocationLinkWithFinishAndStatusEntity>
 
     @UseRowMapper(LocationLinkWithLocationsMapper::class)
