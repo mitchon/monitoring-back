@@ -16,6 +16,14 @@ data class LocationLinkWithFinishEntity (
     val maxSpeed: Double
 )
 
+data class LocationLinkWithFinishAndStatusEntity (
+    val start: Long,
+    val finish: LocationEntity,
+    val length: Double,
+    val maxSpeed: Double,
+    val needsReload: Boolean
+)
+
 data class LocationLinkInsertableEntity (
     val start:  Long,
     val finish: Long,

@@ -34,4 +34,9 @@ class ApiController(
     fun getRouteAStarSafeSpace(@PathVariable start: Long, @PathVariable finish: Long): List<LocationLink> {
         return shortestPathService.getRouteAStarSafeSpace(start, finish)
     }
+
+    @GetMapping("/route/{start}/{finish}/a-star/safe-space-cached")
+    fun getRouteAStarSafeSpaceCached(@PathVariable start: Long, @PathVariable finish: Long): List<LocationLink> {
+        return shortestPathService.getRouteAStarSafeSpaceCached(start, finish)
+    }
 }

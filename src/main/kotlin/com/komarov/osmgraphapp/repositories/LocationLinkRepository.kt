@@ -1,9 +1,6 @@
 package com.komarov.osmgraphapp.repositories
 
-import com.komarov.osmgraphapp.entities.LocationEntity
-import com.komarov.osmgraphapp.entities.LocationLinkWithLocationsEntity
-import com.komarov.osmgraphapp.entities.LocationLinkInsertableEntity
-import com.komarov.osmgraphapp.entities.LocationLinkWithFinishEntity
+import com.komarov.osmgraphapp.entities.*
 import com.komarov.osmgraphapp.utils.LocationsUpdateEvent
 import org.jdbi.v3.core.Jdbi
 import org.jdbi.v3.core.mapper.RowMapper
@@ -35,15 +32,32 @@ interface LocationLinkEntityJdbiRepository {
     )
     fun findAll(): List<LocationLinkWithLocationsEntity>
 
+
     @UseRowMapper(LocationLinkWithFinishMapper::class)
     @SqlQuery("select " +
+        "start as s_id, " +
+        "f.id as f_id, f.latitude as f_latitude, f.longitude as f_longitude, " +
+        "ll.length, ll.max_speed " +
+        "from location_links ll join locations f on ll.finish = f.id " +
+        "where start = ?"
+    )
+    fun findByStartId(startId: Long): List<LocationLinkWithFinishEntity>
+
+    @UseRowMapper(LocationLinkWithFinishAndStatusMapper::class)
+    @SqlQuery("with center as (select * from master.locations where id = ?) " +
+        "select " +
+        "st_distancesphere(" +
+        "geometry(point(f.longitude, f.latitude)), geometry(point(center.longitude, center.latitude))" +
+        ") > 750 as needs_reload, " +
         "s.id as s_id, " +
         "f.id as f_id, f.latitude as f_latitude, f.longitude as f_longitude, " +
         "ll.length, ll.max_speed " +
         "from location_links ll join locations s on ll.start = s.id join locations f on ll.finish = f.id " +
-        "where s.id = ?"
-    )
-    fun findByStartId(startId: Long): List<LocationLinkWithFinishEntity>
+        "join center on 1=1 " +
+        "where st_distancesphere(" +
+        "geometry(point(s.longitude, s.latitude)), geometry(point(center.longitude, center.latitude))" +
+        ") <= 750")
+    fun findInRadiusAroundId(id: Long): List<LocationLinkWithFinishAndStatusEntity>
 
     @UseRowMapper(LocationLinkWithLocationsMapper::class)
     @SqlQuery("select " +
@@ -95,6 +109,23 @@ class LocationLinkWithFinishMapper: RowMapper<LocationLinkWithFinishEntity> {
     }
 }
 
+class LocationLinkWithFinishAndStatusMapper: RowMapper<LocationLinkWithFinishAndStatusEntity> {
+    @Throws(SQLException::class)
+    override fun map(rs: ResultSet, ctx: StatementContext): LocationLinkWithFinishAndStatusEntity {
+        return LocationLinkWithFinishAndStatusEntity(
+            start = rs.getLong("s_id"),
+            finish = LocationEntity(
+                id = rs.getLong("f_id"),
+                latitude = rs.getDouble("f_latitude"),
+                longitude = rs.getDouble("f_longitude")
+            ),
+            length = rs.getDouble("length"),
+            maxSpeed = rs.getDouble("max_speed"),
+            needsReload = rs.getBoolean("needs_reload")
+        )
+    }
+}
+
 @Repository
 class LocationLinkRepository(
     private val jdbi: Jdbi,
@@ -106,7 +137,14 @@ class LocationLinkRepository(
         jdbiRepository.insertBatch(links)
         applicationEventPublisher.publishEvent(LocationsUpdateEvent())
     }
-    fun findByStartId(startId: Long): List<LocationLinkWithFinishEntity> = jdbiRepository.findByStartId(startId)
+
+    fun findByStartId(startId: Long): List<LocationLinkWithFinishEntity> {
+        return jdbiRepository.findByStartId(startId)
+    }
+
+    fun findInRadiusAroundId(id: Long): List<LocationLinkWithFinishAndStatusEntity> {
+        return jdbiRepository.findInRadiusAroundId(id)
+    }
 
     fun findByStartIdAndFinishId(startId: Long, finishId: Long): LocationLinkWithLocationsEntity? =
         jdbiRepository.findByStartIdAndFinishId(startId, finishId)
