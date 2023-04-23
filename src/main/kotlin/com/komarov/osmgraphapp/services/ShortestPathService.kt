@@ -46,13 +46,13 @@ class ShortestPathService(
                 (vertexConverter.convert(it.finish) to it.length)
             }
         }
-        stopWatch.stop()
-        logger.info("default ${stopWatch.lastTaskInfo.timeMillis}")
         val linksSet = route?.zipWithNext()?.map {
             links.firstOrNull { ll -> ll.start.id == it.first.id && ll.finish.id == it.second.id }!!.let {
                 locationLinkConverter.convert(it)
             }
         } ?: throw RuntimeException("Route not found")
+        stopWatch.stop()
+        logger.info("default ${stopWatch.lastTaskInfo.timeMillis}")
         return linksSet
     }
 
@@ -72,13 +72,12 @@ class ShortestPathService(
                 (vertexConverter.convert(it.finish) to it.length)
             }
         }
+        val segments = route?.map { it.id }?.zipWithNext() ?: throw RuntimeException("Route Not Found")
+        val linksSet = locationLinkRepository.findByStartIdAndFinishIdIn(segments).map {
+            locationLinkConverter.convert(it)
+        }
         stopWatch.stop()
         logger.info("safe-space ${stopWatch.lastTaskInfo.timeMillis}")
-        val linksSet = route?.zipWithNext()?.map {
-            locationLinkRepository.findByStartIdAndFinishId(it.first.id, it.second.id)?.let {
-                locationLinkConverter.convert(it)
-            } ?: throw RuntimeException("Link between ${it.first.id} and ${it.second.id} not found")
-        } ?: throw RuntimeException("Route not found")
         return linksSet
     }
 
@@ -103,13 +102,12 @@ class ShortestPathService(
                 vertexConverter.convert(it.finish) to it.length
             }
         }
+        val segments = route?.map { it.id }?.zipWithNext() ?: throw RuntimeException("Route Not Found")
+        val linksSet = locationLinkRepository.findByStartIdAndFinishIdIn(segments).map {
+            locationLinkConverter.convert(it)
+        }
         stopWatch.stop()
         logger.info("safe-space cached ${stopWatch.lastTaskInfo.timeMillis}")
-        val linksSet = route?.zipWithNext()?.map {
-            locationLinkRepository.findByStartIdAndFinishId(it.first.id, it.second.id)?.let {
-                locationLinkConverter.convert(it)
-            } ?: throw RuntimeException("Link between ${it.first.id} and ${it.second.id} not found")
-        } ?: throw RuntimeException("Route not found")
         return linksSet
     }
 }

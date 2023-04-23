@@ -5,7 +5,10 @@ import com.komarov.osmgraphapp.utils.LocationsUpdateEvent
 import org.jdbi.v3.core.Jdbi
 import org.jdbi.v3.core.mapper.RowMapper
 import org.jdbi.v3.core.statement.StatementContext
+import org.jdbi.v3.sqlobject.customizer.Bind
 import org.jdbi.v3.sqlobject.customizer.BindBean
+import org.jdbi.v3.sqlobject.customizer.BindBeanList
+import org.jdbi.v3.sqlobject.customizer.BindList
 import org.jdbi.v3.sqlobject.kotlin.RegisterKotlinMapper
 import org.jdbi.v3.sqlobject.statement.SqlBatch
 import org.jdbi.v3.sqlobject.statement.SqlQuery
@@ -16,6 +19,7 @@ import org.springframework.stereotype.Repository
 import java.sql.ResultSet
 import java.sql.SQLException
 import java.util.*
+import javax.swing.text.Segment
 
 
 interface LocationLinkEntityJdbiRepository {
@@ -65,9 +69,11 @@ interface LocationLinkEntityJdbiRepository {
         "f.id as f_id, f.latitude as f_latitude, f.longitude as f_longitude, " +
         "ll.length, ll.max_speed " +
         "from location_links ll join locations s on ll.start = s.id join locations f on ll.finish = f.id " +
-        "where s.id = ? and f.id = ?"
+        "where (s.id, f.id) in (<segments>)"
     )
-    fun findByStartIdAndFinishId(startId: Long, finishId: Long): LocationLinkWithLocationsEntity?
+    fun findByStartIdAndFinishIdIn(
+        @BindBeanList(value = "segments", propertyNames = ["first", "second"]) segments: List<Pair<Long, Long>>
+    ): List<LocationLinkWithLocationsEntity>
 
     @SqlUpdate("delete from master.location_links where true")
     fun deleteAll()
@@ -146,7 +152,8 @@ class LocationLinkRepository(
         return jdbiRepository.findInRadiusAroundId(id)
     }
 
-    fun findByStartIdAndFinishId(startId: Long, finishId: Long): LocationLinkWithLocationsEntity? =
-        jdbiRepository.findByStartIdAndFinishId(startId, finishId)
+    fun findByStartIdAndFinishIdIn(segments: List<Pair<Long, Long>>): List<LocationLinkWithLocationsEntity> =
+        jdbiRepository.findByStartIdAndFinishIdIn(segments)
+
     fun deleteAll() = jdbiRepository.deleteAll()
 }
