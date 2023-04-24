@@ -8,10 +8,10 @@ data class BoundingBoxTemplate(
 ) {
     companion object {
         val maxBoundingBox = BoundingBoxTemplate(
-            minLatitude = 54.7585694 - 0.3 / 2,
-            minLongitude = 38.8818137 - 0.3,
-            maxLatitude = 54.7585694 + 0.3 / 2,
-            maxLongitude = 38.8818137 + 0.3,
+            minLatitude = 55.751495 - 0.075 / 2,
+            minLongitude = 37.618174 - 0.075,
+            maxLatitude = 55.751495 + 0.075 / 2,
+            maxLongitude = 37.618174 + 0.075,
         )
     }
 }

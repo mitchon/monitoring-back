@@ -36,9 +36,11 @@ class RoadwaysGraphService(
             return RequestResponse(requestId)
         logger.info("Started build by request $requestId")
         val roads = requestRoads()
-        logger.info("Got all roads by request $requestId")
+        logger.info("Got all roads (${roads.size}) by request $requestId")
         logger.info(roads.map { it.maxSpeed }.distinct().joinToString(","))
-        val locationsWithLinks = roads.stream().map { it.requestLocations() }.toList()
+        val locationsWithLinks = roads.mapIndexed { i, road ->
+            road.requestLocations().also { logger.info("($i/${roads.size}) Got all nodes for way ${road.id}") }
+        }
         val locations = locationsWithLinks.flatMap { it.first }.distinctBy { it.id }
         val links = locationsWithLinks.flatMap { it.second }.distinctBy { (it.start.id to it.finish.id) }
         logger.info("Inserting by request $requestId")
@@ -114,7 +116,6 @@ class RoadwaysGraphService(
             }
         }
 
-        logger.info("Got all nodes for way ${this.id}")
         return (locations to primaryDirLinks + secondaryDirLinks)
     }
 
