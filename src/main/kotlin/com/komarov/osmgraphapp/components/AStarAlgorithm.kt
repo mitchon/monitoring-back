@@ -29,7 +29,7 @@ sealed interface Heuristic {
     fun getEstimation(a: Vertex<*>, b: Vertex<*>): Double
 }
 
-open class EuclideanDistance: Heuristic {
+open class DistanceHeuristic: Heuristic {
     override fun getEstimation(a: Vertex<*>, b: Vertex<*>): Double {
         val earthRadius = 6371000.0 // in meters
         val latDiff = Math.toRadians(b.lat - a.lat)
@@ -41,6 +41,22 @@ open class EuclideanDistance: Heuristic {
         val a1 = sinLat * sinLat + cos(aLat) * cos(bLat) * sinLon * sinLon
         val a2 = 2 * atan2(sqrt(a1), sqrt(1 - a1))
         return earthRadius * a2
+    }
+}
+
+open class TimeHeuristic: Heuristic {
+    override fun getEstimation(a: Vertex<*>, b: Vertex<*>): Double {
+        val earthRadius = 6371000.0 // in meters
+        val latDiff = Math.toRadians(b.lat - a.lat)
+        val lonDiff = Math.toRadians(b.lon - a.lon)
+        val aLat = Math.toRadians(a.lat)
+        val bLat = Math.toRadians(b.lat)
+        val sinLat = sin(latDiff / 2)
+        val sinLon = sin(lonDiff / 2)
+        val a1 = sinLat * sinLat + cos(aLat) * cos(bLat) * sinLon * sinLon
+        val a2 = 2 * atan2(sqrt(a1), sqrt(1 - a1))
+        val distance = earthRadius * a2
+        return distance / ( 110 / 3.6 )
     }
 }
 

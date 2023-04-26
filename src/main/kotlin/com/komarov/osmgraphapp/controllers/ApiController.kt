@@ -30,9 +30,9 @@ class ApiController(
         return shortestPathService.getRouteAStarDefault(start, finish)
     }
 
-    @GetMapping("/route/{start}/{finish}/a-star/safe-space")
+    @GetMapping("/route/{start}/{finish}/a-star/safe-space-cached-time")
     fun getRouteAStarSafeSpace(@PathVariable start: Long, @PathVariable finish: Long): List<LocationLink> {
-        return shortestPathService.getRouteAStarSafeSpace(start, finish)
+        return shortestPathService.getRouteAStarSafeSpaceCachedTimeHeuristic(start, finish)
     }
 
     @GetMapping("/route/{start}/{finish}/a-star/safe-space-cached")
