@@ -3,7 +3,6 @@ package com.komarov.osmgraphapp.services
 import com.komarov.osmgraphapp.components.AStarAlgorithm
 import com.komarov.osmgraphapp.components.DistanceHeuristic
 import com.komarov.osmgraphapp.components.TimeHeuristic
-import com.komarov.osmgraphapp.converters.LocationConverter
 import com.komarov.osmgraphapp.converters.LocationLinkConverter
 import com.komarov.osmgraphapp.converters.VertexConverter
 import com.komarov.osmgraphapp.entities.LocationLinkWithFinishAndStatusEntity
@@ -18,7 +17,6 @@ import org.springframework.util.StopWatch
 class ShortestPathService(
     private val locationRepository: LocationRepository,
     private val locationLinkRepository: LocationLinkRepository,
-    private val locationConverter: LocationConverter,
     private val locationLinkConverter: LocationLinkConverter,
     private val vertexConverter: VertexConverter,
 ) {

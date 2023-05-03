@@ -1,10 +1,11 @@
 package com.komarov.osmgraphapp.components
 
-import org.slf4j.LoggerFactory
 import java.util.*
 import kotlin.math.*
 
-abstract class GraphAbstractAlgorithm<TVertex> {
+abstract class GraphAbstractAlgorithm<TVertex>(
+    protected val heuristic: Heuristic
+) {
 
     abstract fun getRoute (
         start: Vertex<TVertex>,
@@ -61,10 +62,8 @@ open class TimeHeuristic: Heuristic {
 }
 
 class AStarAlgorithm<TVertex>(
-    private val heuristic: Heuristic
-): GraphAbstractAlgorithm<TVertex>() {
-
-    private val logger = LoggerFactory.getLogger(this::class.java)
+    heuristic: Heuristic
+): GraphAbstractAlgorithm<TVertex>(heuristic) {
 
     override fun getRoute(
         start: Vertex<TVertex>,

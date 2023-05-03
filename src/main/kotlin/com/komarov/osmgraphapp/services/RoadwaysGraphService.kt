@@ -56,6 +56,14 @@ class RoadwaysGraphService(
         return RequestResponse(requestId)
     }
 
+    fun getDistance(start: Long, finish: Long): Double {
+        val startLocation = locationRepository.findById(start)?.let { locationConverter.convert(it) }!!
+        val finishLocation = locationRepository.findById(finish)?.let { locationConverter.convert(it) }!!
+        val result = countDistance(startLocation, finishLocation)
+        logger.info("distance between $start and $finish is $result")
+        return result
+    }
+
     fun requestBuild(): RequestResponse {
         if (task.isDone)
             return task.get()
@@ -167,7 +175,8 @@ class RoadwaysGraphService(
             tagValue.toDouble()
         else when (tagValue) {
             "RU:rural" -> 90.0
-            "RU:urban" -> 110.0
+            "RU:urban" -> 60.0
+            "RU:living_street" -> 20.0
             else -> 60.0
         }
     }

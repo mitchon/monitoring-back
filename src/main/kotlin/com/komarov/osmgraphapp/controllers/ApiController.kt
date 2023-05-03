@@ -25,6 +25,15 @@ class ApiController(
         return roadwaysGraphService.requestGraph()
     }
 
+    @GetMapping("/route/{start}/{finish}/a-star/all")
+    fun getRouteAStarAll(@PathVariable start: Long, @PathVariable finish: Long): List<LocationLink> {
+        roadwaysGraphService.getDistance(start, finish)
+//        shortestPathService.getRouteAStarDefault(start, finish)
+//        shortestPathService.getRouteAStarSafeSpace(start, finish)
+        return shortestPathService.getRouteAStarSafeSpaceCached(start, finish)
+    }
+
+
     @GetMapping("/route/{start}/{finish}/a-star/default")
     fun getRouteAStarDefault(@PathVariable start: Long, @PathVariable finish: Long): List<LocationLink> {
         return shortestPathService.getRouteAStarDefault(start, finish)
