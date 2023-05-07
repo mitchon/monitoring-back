@@ -8,7 +8,6 @@ import org.jdbi.v3.core.statement.StatementContext
 import org.jdbi.v3.sqlobject.customizer.Bind
 import org.jdbi.v3.sqlobject.customizer.BindBean
 import org.jdbi.v3.sqlobject.customizer.BindBeanList
-import org.jdbi.v3.sqlobject.customizer.BindList
 import org.jdbi.v3.sqlobject.kotlin.RegisterKotlinMapper
 import org.jdbi.v3.sqlobject.statement.SqlBatch
 import org.jdbi.v3.sqlobject.statement.SqlQuery
@@ -19,7 +18,6 @@ import org.springframework.stereotype.Repository
 import java.sql.ResultSet
 import java.sql.SQLException
 import java.util.*
-import javax.swing.text.Segment
 
 
 interface LocationLinkEntityJdbiRepository {
@@ -48,11 +46,11 @@ interface LocationLinkEntityJdbiRepository {
     fun findByStartId(startId: Long): List<LocationLinkWithFinishEntity>
 
     @UseRowMapper(LocationLinkWithFinishAndStatusMapper::class)
-    @SqlQuery("with center as (select * from master.locations where id = ?) " +
+    @SqlQuery("with center as (select * from master.locations where id = :id) " +
         "select " +
         "st_distancesphere(" +
         "geometry(point(f.longitude, f.latitude)), geometry(point(center.longitude, center.latitude))" +
-        ") > 5000 as needs_reload, " +
+        ") > :radius as needs_reload, " +
         "s.id as s_id, " +
         "f.id as f_id, f.latitude as f_latitude, f.longitude as f_longitude, " +
         "ll.length, ll.max_speed " +
@@ -60,8 +58,8 @@ interface LocationLinkEntityJdbiRepository {
         "join center on 1=1 " +
         "where st_distancesphere(" +
         "geometry(point(s.longitude, s.latitude)), geometry(point(center.longitude, center.latitude))" +
-        ") <= 5000")
-    fun findInRadiusAroundId(id: Long): List<LocationLinkWithFinishAndStatusEntity>
+        ") <= :radius")
+    fun findInRadiusAroundId(@Bind("id") id: Long, @Bind("radius") radius: Int): List<LocationLinkWithFinishAndStatusEntity>
 
     @UseRowMapper(LocationLinkWithLocationsMapper::class)
     @SqlQuery("select " +
@@ -148,8 +146,8 @@ class LocationLinkRepository(
         return jdbiRepository.findByStartId(startId)
     }
 
-    fun findInRadiusAroundId(id: Long): List<LocationLinkWithFinishAndStatusEntity> {
-        return jdbiRepository.findInRadiusAroundId(id)
+    fun findInRadiusAroundId(id: Long, radius: Int): List<LocationLinkWithFinishAndStatusEntity> {
+        return jdbiRepository.findInRadiusAroundId(id, radius)
     }
 
     fun findByStartIdAndFinishIdIn(segments: List<Pair<Long, Long>>): List<LocationLinkWithLocationsEntity> =
