@@ -11,7 +11,9 @@ class LocationConverter: Converter<LocationEntity, Location> {
         return Location(
             id = source.id,
             latitude = source.latitude,
-            longitude = source.longitude
+            longitude = source.longitude,
+            district = "",
+            type = ""
         )
     }
 }

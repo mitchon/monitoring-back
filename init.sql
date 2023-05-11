@@ -1,12 +1,11 @@
-create extension postgis;
-
 create schema if not exists master;
 
 create table if not exists master.locations (
     id bigint not null,
     primary key (id),
     latitude double precision not null,
-    longitude double precision not null
+    longitude double precision not null,
+    district text not null
 );
 
 create table if not exists master.location_links (
@@ -17,6 +16,14 @@ create table if not exists master.location_links (
     max_speed double precision not null,
     foreign key (start) references master.locations(id),
     foreign key (finish) references master.locations(id)
+);
+
+create table if not exists master.borders (
+    from_district text not null,
+    to_district text not null,
+    primary key (from_district, to_district),
+    location_id bigint not null,
+    foreign key (location_id) references master.locations(id)
 );
 
 -- explain analyse (select

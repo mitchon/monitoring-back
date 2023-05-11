@@ -7,14 +7,16 @@ import kotlin.math.max
 data class LocationEntity (
     val id: Long,
     val latitude: Double,
-    val longitude: Double
+    val longitude: Double,
+    val district: String
 ) {
     companion object {
         fun fromModel(source: Location): LocationEntity {
             return LocationEntity(
                 id = source.id,
                 latitude = source.latitude,
-                longitude = source.longitude
+                longitude = source.longitude,
+                district = source.district
             )
         }
     }

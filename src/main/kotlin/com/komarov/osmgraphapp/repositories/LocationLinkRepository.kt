@@ -27,8 +27,8 @@ interface LocationLinkEntityJdbiRepository {
 
     @UseRowMapper(LocationLinkWithLocationsMapper::class)
     @SqlQuery("select " +
-            "s.id as s_id, s.latitude as s_latitude, s.longitude as s_longitude, " +
-            "f.id as f_id, f.latitude as f_latitude, f.longitude as f_longitude, " +
+            "s.id as s_id, s.latitude as s_latitude, s.longitude as s_longitude, s.district as s_district, " +
+            "f.id as f_id, f.latitude as f_latitude, f.longitude as f_longitude, f.district as f_district, " +
             "ll.length, ll.max_speed " +
             "from location_links ll join locations s on ll.start = s.id join locations f on ll.finish = f.id"
     )
@@ -38,7 +38,7 @@ interface LocationLinkEntityJdbiRepository {
     @UseRowMapper(LocationLinkWithFinishMapper::class)
     @SqlQuery("select " +
         "start as s_id, " +
-        "f.id as f_id, f.latitude as f_latitude, f.longitude as f_longitude, " +
+        "f.id as f_id, f.latitude as f_latitude, f.longitude as f_longitude, f.district as f_district, " +
         "ll.length, ll.max_speed " +
         "from location_links ll join locations f on ll.finish = f.id " +
         "where start = ?"
@@ -52,7 +52,7 @@ interface LocationLinkEntityJdbiRepository {
         "geometry(point(f.longitude, f.latitude)), geometry(point(center.longitude, center.latitude))" +
         ") > :radius as needs_reload, " +
         "s.id as s_id, " +
-        "f.id as f_id, f.latitude as f_latitude, f.longitude as f_longitude, " +
+        "f.id as f_id, f.latitude as f_latitude, f.longitude as f_longitude, f.district as f_district, " +
         "ll.length, ll.max_speed " +
         "from location_links ll join locations s on ll.start = s.id join locations f on ll.finish = f.id " +
         "join center on 1=1 " +
@@ -63,8 +63,8 @@ interface LocationLinkEntityJdbiRepository {
 
     @UseRowMapper(LocationLinkWithLocationsMapper::class)
     @SqlQuery("select " +
-        "s.id as s_id, s.latitude as s_latitude, s.longitude as s_longitude, " +
-        "f.id as f_id, f.latitude as f_latitude, f.longitude as f_longitude, " +
+        "s.id as s_id, s.latitude as s_latitude, s.longitude as s_longitude, s.district as s_district, " +
+        "f.id as f_id, f.latitude as f_latitude, f.longitude as f_longitude, f.district as f_district, " +
         "ll.length, ll.max_speed " +
         "from location_links ll join locations s on ll.start = s.id join locations f on ll.finish = f.id " +
         "where (s.id, f.id) in (<segments>)"
@@ -84,12 +84,14 @@ class LocationLinkWithLocationsMapper: RowMapper<LocationLinkWithLocationsEntity
             start = LocationEntity(
                 id = rs.getLong("s_id"),
                 latitude = rs.getDouble("s_latitude"),
-                longitude = rs.getDouble("s_longitude")
+                longitude = rs.getDouble("s_longitude"),
+                district = rs.getString("s_district")
             ),
             finish = LocationEntity(
                 id = rs.getLong("f_id"),
                 latitude = rs.getDouble("f_latitude"),
-                longitude = rs.getDouble("f_longitude")
+                longitude = rs.getDouble("f_longitude"),
+                district = rs.getString("f_district")
             ),
             length = rs.getDouble("length"),
             maxSpeed = rs.getDouble("max_speed")
@@ -105,7 +107,8 @@ class LocationLinkWithFinishMapper: RowMapper<LocationLinkWithFinishEntity> {
             finish = LocationEntity(
                 id = rs.getLong("f_id"),
                 latitude = rs.getDouble("f_latitude"),
-                longitude = rs.getDouble("f_longitude")
+                longitude = rs.getDouble("f_longitude"),
+                district = rs.getString("f_district")
             ),
             length = rs.getDouble("length"),
             maxSpeed = rs.getDouble("max_speed")
@@ -121,7 +124,8 @@ class LocationLinkWithFinishAndStatusMapper: RowMapper<LocationLinkWithFinishAnd
             finish = LocationEntity(
                 id = rs.getLong("f_id"),
                 latitude = rs.getDouble("f_latitude"),
-                longitude = rs.getDouble("f_longitude")
+                longitude = rs.getDouble("f_longitude"),
+                district = rs.getString("f_district")
             ),
             length = rs.getDouble("length"),
             maxSpeed = rs.getDouble("max_speed"),

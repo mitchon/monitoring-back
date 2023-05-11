@@ -4,5 +4,7 @@ data class Road(
     val id: Long,
     val nodes: List<Long>,
     val maxSpeed: String?,
-    val oneway: Boolean
+    val oneway: Boolean,
+    val district: String,
+    val type: String
 )

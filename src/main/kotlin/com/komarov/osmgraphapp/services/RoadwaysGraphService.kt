@@ -2,6 +2,7 @@ package com.komarov.osmgraphapp.services
 
 import com.komarov.osmgraphapp.converters.LocationConverter
 import com.komarov.osmgraphapp.converters.LocationLinkConverter
+import com.komarov.osmgraphapp.entities.BorderInsertableEntity
 import com.komarov.osmgraphapp.entities.LocationEntity
 import com.komarov.osmgraphapp.entities.LocationLinkInsertableEntity
 import com.komarov.osmgraphapp.handlers.NodesHandler
@@ -16,6 +17,9 @@ import java.lang.Character.isDigit
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
 import kotlin.math.*
+
+
+typealias BorderLocationsMap = Map<Pair<String, String>, Long>
 
 @Service
 class RoadwaysGraphService(
@@ -43,6 +47,13 @@ class RoadwaysGraphService(
         }
         val locations = locationsWithLinks.flatMap { it.first }.distinctBy { it.id }
         val links = locationsWithLinks.flatMap { it.second }.distinctBy { (it.start.id to it.finish.id) }
+        val borderLocations = findBorderLocations(links).map { (k, v) ->
+            BorderInsertableEntity(
+                fromDistrict = k.first,
+                toDistrict = k.second,
+                location = v
+            )
+        }
         logger.info("Inserting by request $requestId")
         val locationEntities = locations.map {
             LocationEntity.fromModel(it)
@@ -52,16 +63,28 @@ class RoadwaysGraphService(
             LocationLinkInsertableEntity.fromModel(it)
         }
         locationLinkRepository.insertBatch(locationLinkEntities)
+        locationRepository.insertBordersBatch(borderLocations)
         logger.info("Request $requestId is fulfilled")
         return RequestResponse(requestId)
     }
 
-    fun getDistance(start: Long, finish: Long): Double {
-        val startLocation = locationRepository.findById(start)?.let { locationConverter.convert(it) }!!
-        val finishLocation = locationRepository.findById(finish)?.let { locationConverter.convert(it) }!!
-        val result = countDistance(startLocation, finishLocation)
-        logger.info("distance between $start and $finish is $result")
-        return result
+    private fun findBorderLocations(links: List<LocationLink>): BorderLocationsMap {
+        val borderLinks = links.filter { it.start.district != it.finish.district }
+        val borderLocationsMap = borderLinks
+            .map { (it.start.district to it.finish.district) to it.start }
+            .groupBy { it.first }.toMap()
+            .mapValues { (k, v) -> v.map { it.second } }
+            .mapValues { (k, v) ->
+                (
+                    v.firstOrNull { it.type == "primary" } ?:
+                    v.firstOrNull { it.type == "secondary" } ?:
+                    v.firstOrNull { it.type == "tertiary" } ?:
+                    v.firstOrNull { it.type == "residential" } ?:
+                    v.firstOrNull { it.type == "living_street" } ?:
+                    v.first { it.type == "unclassified" }
+                ).id
+            }
+        return borderLocationsMap
     }
 
     fun requestBuild(): RequestResponse {
@@ -94,7 +117,9 @@ class RoadwaysGraphService(
             val location = Location(
                 id = node.id,
                 latitude = node.position.latitude,
-                longitude = node.position.longitude
+                longitude = node.position.longitude,
+                district = this.district,
+                type = this.type
             )
             nodes[location.id] = location
         }
@@ -129,22 +154,26 @@ class RoadwaysGraphService(
 
     private fun requestRoads(): List<Road> {
         val waysHandler = WaysHandler()
-        overpass.queryElements(
-            """
-                [bbox:${boundingBox.minLatitude},${boundingBox.minLongitude},${boundingBox.maxLatitude},${boundingBox.maxLongitude}];
-                (
-                    way['highway' = 'primary'];
-                    way['highway' = 'secondary'];
-                    way['highway' = 'tertiary'];
-                    way['highway' = 'residential'];
-                    way['highway' = 'living_street'];
-                    way['highway' = 'unclassified'];
-                );
-                out meta;
-            """.trimIndent(),
-            waysHandler
-        )
-        return waysHandler.get().map { way ->
+        val request = """
+            (
+                way(area.a)['highway' = 'primary'];
+                way(area.a)['highway' = 'secondary'];
+                way(area.a)['highway' = 'tertiary'];
+                way(area.a)['highway' = 'residential'];
+                way(area.a)['highway' = 'living_street'];
+                way(area.a)['highway' = 'unclassified'];
+            );
+            out meta;
+        """.trimIndent()
+        val listOfDistricts = listOf("ЦАО","ЮВАО","ВАО","СВАО","САО","СЗАО","ЗАО","ЮЗАО","ЮАО")
+        val allWays = listOfDistricts.flatMap { district ->
+            overpass.queryElements(
+                "area[ref~\"$district\"]->.a;\n$request",
+                waysHandler
+            )
+            waysHandler.get().map { way -> way to district }
+        }
+        return allWays.map { (way, district) ->
             val oneway = way.tags["oneway"]?.let { it == "yes" } ?: false
             val roundabout = way.tags["junction"]?.let { it == "roundabout" } ?: false
             val maxSpeed = way.tags["maxspeed"]
@@ -152,7 +181,9 @@ class RoadwaysGraphService(
                 id = way.id,
                 nodes = way.nodeIds,
                 oneway = oneway || roundabout,
-                maxSpeed = maxSpeed
+                maxSpeed = maxSpeed,
+                district = district,
+                type = way.tags["highway"] ?: "unclassified"
             )
         }.distinctBy { it.id }
     }
