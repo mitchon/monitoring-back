@@ -47,13 +47,6 @@ class RoadwaysGraphService(
         }
         val locations = locationsWithLinks.flatMap { it.first }.distinctBy { it.id }
         val links = locationsWithLinks.flatMap { it.second }.distinctBy { (it.start.id to it.finish.id) }
-        val borderLocations = findBorderLocations(links).map { (k, v) ->
-            BorderInsertableEntity(
-                fromDistrict = k.first,
-                toDistrict = k.second,
-                location = v
-            )
-        }
         logger.info("Inserting by request $requestId")
         val locationEntities = locations.map {
             LocationEntity.fromModel(it)
@@ -63,14 +56,21 @@ class RoadwaysGraphService(
             LocationLinkInsertableEntity.fromModel(it)
         }
         locationLinkRepository.insertBatch(locationLinkEntities)
+        val borderLocations = findBorderLocations().map { (k, v) ->
+            BorderInsertableEntity(
+                fromDistrict = k.first,
+                toDistrict = k.second,
+                location = v
+            )
+        }
         locationRepository.insertBordersBatch(borderLocations)
         logger.info("Request $requestId is fulfilled")
         return RequestResponse(requestId)
     }
 
-    private fun findBorderLocations(links: List<LocationLink>): BorderLocationsMap {
-        val borderLinks = links.filter { it.start.district != it.finish.district }
-        val borderLocationsMap = borderLinks
+    private fun findBorderLocations(): BorderLocationsMap {
+        val borderLinks = locationLinkRepository.findBorders()
+        return borderLinks
             .map { (it.start.district to it.finish.district) to it.start }
             .groupBy { it.first }.toMap()
             .mapValues { (k, v) -> v.map { it.second } }
@@ -84,7 +84,6 @@ class RoadwaysGraphService(
                     v.first { it.type == "unclassified" }
                 ).id
             }
-        return borderLocationsMap
     }
 
     fun requestBuild(): RequestResponse {

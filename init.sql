@@ -5,7 +5,8 @@ create table if not exists master.locations (
     primary key (id),
     latitude double precision not null,
     longitude double precision not null,
-    district text not null
+    district text not null,
+    type text not null
 );
 
 create table if not exists master.location_links (

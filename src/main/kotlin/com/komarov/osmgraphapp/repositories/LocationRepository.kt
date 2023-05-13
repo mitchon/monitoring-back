@@ -21,7 +21,7 @@ import javax.swing.border.Border
 interface LocationEntityJdbiRepository {
 
     @RegisterKotlinMapper(LocationEntity::class)
-    @SqlBatch("insert into master.locations values (:id, :latitude, :longitude, :district)")
+    @SqlBatch("insert into master.locations values (:id, :latitude, :longitude, :district, :type)")
     fun insertBatch(@BindBean locations: List<LocationEntity>)
 
     @RegisterKotlinMapper(LocationEntity::class)
@@ -39,7 +39,7 @@ interface LocationEntityJdbiRepository {
     @UseRowMapper(BorderWithLocationMapper::class)
     @SqlQuery(
         "select" +
-        "l.id as l_id, l.latitude as l_latitude, l.longitude as l_longitude, l.district as l_district, " +
+        "l.id as l_id, l.latitude as l_latitude, l.longitude as l_longitude, l.district as l_district, l.type as l_type " +
         "b.from_district, b.from_district " +
         "from master.borders b join master.locations l on b.location_id = l.id "
     )
@@ -60,7 +60,8 @@ class BorderWithLocationMapper: RowMapper<BorderEntity> {
                 id = rs.getLong("l_id"),
                 latitude = rs.getDouble("l_latitude"),
                 longitude = rs.getDouble("l_longitude"),
-                district = rs.getString("l_district")
+                district = rs.getString("l_district"),
+                type = rs.getString("l_type")
             )
         )
     }

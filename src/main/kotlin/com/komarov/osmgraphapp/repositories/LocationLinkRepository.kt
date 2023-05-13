@@ -27,18 +27,28 @@ interface LocationLinkEntityJdbiRepository {
 
     @UseRowMapper(LocationLinkWithLocationsMapper::class)
     @SqlQuery("select " +
-            "s.id as s_id, s.latitude as s_latitude, s.longitude as s_longitude, s.district as s_district, " +
-            "f.id as f_id, f.latitude as f_latitude, f.longitude as f_longitude, f.district as f_district, " +
+            "s.id as s_id, s.latitude as s_latitude, s.longitude as s_longitude, s.district as s_district, s.type as s_type, " +
+            "f.id as f_id, f.latitude as f_latitude, f.longitude as f_longitude, f.district as f_district, f.type as f_type, " +
             "ll.length, ll.max_speed " +
             "from location_links ll join locations s on ll.start = s.id join locations f on ll.finish = f.id"
     )
     fun findAll(): List<LocationLinkWithLocationsEntity>
 
+    @UseRowMapper(LocationLinkWithLocationsMapper::class)
+    @SqlQuery("select " +
+        "s.id as s_id, s.latitude as s_latitude, s.longitude as s_longitude, s.district as s_district, s.type as s_type, " +
+        "f.id as f_id, f.latitude as f_latitude, f.longitude as f_longitude, f.district as f_district, f.type as f_type, " +
+        "ll.length, ll.max_speed " +
+        "from location_links ll join locations s on ll.start = s.id join locations f on ll.finish = f.id " +
+        "where s.district != f.district"
+    )
+    fun findBorders(): List<LocationLinkWithLocationsEntity>
+
 
     @UseRowMapper(LocationLinkWithFinishMapper::class)
     @SqlQuery("select " +
         "start as s_id, " +
-        "f.id as f_id, f.latitude as f_latitude, f.longitude as f_longitude, f.district as f_district, " +
+        "f.id as f_id, f.latitude as f_latitude, f.longitude as f_longitude, f.district as f_district, f.type as f_type, " +
         "ll.length, ll.max_speed " +
         "from location_links ll join locations f on ll.finish = f.id " +
         "where start = ?"
@@ -52,7 +62,7 @@ interface LocationLinkEntityJdbiRepository {
         "geometry(point(f.longitude, f.latitude)), geometry(point(center.longitude, center.latitude))" +
         ") > :radius as needs_reload, " +
         "s.id as s_id, " +
-        "f.id as f_id, f.latitude as f_latitude, f.longitude as f_longitude, f.district as f_district, " +
+        "f.id as f_id, f.latitude as f_latitude, f.longitude as f_longitude, f.district as f_district, f.type as f_type, " +
         "ll.length, ll.max_speed " +
         "from location_links ll join locations s on ll.start = s.id join locations f on ll.finish = f.id " +
         "join center on 1=1 " +
@@ -63,8 +73,8 @@ interface LocationLinkEntityJdbiRepository {
 
     @UseRowMapper(LocationLinkWithLocationsMapper::class)
     @SqlQuery("select " +
-        "s.id as s_id, s.latitude as s_latitude, s.longitude as s_longitude, s.district as s_district, " +
-        "f.id as f_id, f.latitude as f_latitude, f.longitude as f_longitude, f.district as f_district, " +
+        "s.id as s_id, s.latitude as s_latitude, s.longitude as s_longitude, s.district as s_district, s.type as s_type, " +
+        "f.id as f_id, f.latitude as f_latitude, f.longitude as f_longitude, f.district as f_district, f.type as f_type, " +
         "ll.length, ll.max_speed " +
         "from location_links ll join locations s on ll.start = s.id join locations f on ll.finish = f.id " +
         "where (s.id, f.id) in (<segments>)"
@@ -85,13 +95,15 @@ class LocationLinkWithLocationsMapper: RowMapper<LocationLinkWithLocationsEntity
                 id = rs.getLong("s_id"),
                 latitude = rs.getDouble("s_latitude"),
                 longitude = rs.getDouble("s_longitude"),
-                district = rs.getString("s_district")
+                district = rs.getString("s_district"),
+                type = rs.getString("s_type")
             ),
             finish = LocationEntity(
                 id = rs.getLong("f_id"),
                 latitude = rs.getDouble("f_latitude"),
                 longitude = rs.getDouble("f_longitude"),
-                district = rs.getString("f_district")
+                district = rs.getString("f_district"),
+                type = rs.getString("f_type")
             ),
             length = rs.getDouble("length"),
             maxSpeed = rs.getDouble("max_speed")
@@ -108,7 +120,8 @@ class LocationLinkWithFinishMapper: RowMapper<LocationLinkWithFinishEntity> {
                 id = rs.getLong("f_id"),
                 latitude = rs.getDouble("f_latitude"),
                 longitude = rs.getDouble("f_longitude"),
-                district = rs.getString("f_district")
+                district = rs.getString("f_district"),
+                type = rs.getString("f_type")
             ),
             length = rs.getDouble("length"),
             maxSpeed = rs.getDouble("max_speed")
@@ -125,7 +138,8 @@ class LocationLinkWithFinishAndStatusMapper: RowMapper<LocationLinkWithFinishAnd
                 id = rs.getLong("f_id"),
                 latitude = rs.getDouble("f_latitude"),
                 longitude = rs.getDouble("f_longitude"),
-                district = rs.getString("f_district")
+                district = rs.getString("f_district"),
+                type = rs.getString("f_type")
             ),
             length = rs.getDouble("length"),
             maxSpeed = rs.getDouble("max_speed"),
@@ -158,4 +172,6 @@ class LocationLinkRepository(
         jdbiRepository.findByStartIdAndFinishIdIn(segments)
 
     fun deleteAll() = jdbiRepository.deleteAll()
+
+    fun findBorders() = jdbiRepository.findBorders()
 }
