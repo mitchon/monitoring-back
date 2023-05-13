@@ -5,10 +5,16 @@ import com.komarov.osmgraphapp.components.DistanceHeuristic
 import com.komarov.osmgraphapp.components.TimeHeuristic
 import com.komarov.osmgraphapp.converters.LocationLinkConverter
 import com.komarov.osmgraphapp.converters.VertexConverter
+import com.komarov.osmgraphapp.entities.LocationEntity
 import com.komarov.osmgraphapp.entities.LocationLinkWithFinishAndStatusEntity
+import com.komarov.osmgraphapp.models.Location
 import com.komarov.osmgraphapp.models.LocationLink
 import com.komarov.osmgraphapp.repositories.LocationLinkRepository
 import com.komarov.osmgraphapp.repositories.LocationRepository
+import org.jgrapht.alg.shortestpath.DijkstraShortestPath
+import org.jgrapht.graph.DefaultEdge
+import org.jgrapht.graph.DirectedMultigraph
+import org.jgrapht.graph.DirectedPseudograph
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 
@@ -119,5 +125,46 @@ class ShortestPathService(
             locationLinkConverter.convert(it)
         }
         return linksSet
+    }
+
+    fun getRouteAStarParallel(from: Long, to: Long): List<LocationLink> {
+        val globalStart = locationRepository.findById(from)
+        val globalGoal = locationRepository.findById(to)
+        if (globalStart == null || globalGoal == null)
+            throw RuntimeException("BadArgumentException, from or to locations are not found")
+        val startDistrict = globalStart.district
+        val goalDistrict = globalGoal.district
+        val listOfPaths: List<Pair<LocationEntity, LocationEntity>> = if (startDistrict != goalDistrict) {
+            val borders = locationRepository.findBorders()
+            val startBorder = borders.first { it.fromDistrict == startDistrict }.location
+            val goalBorder = borders.first { it.fromDistrict == goalDistrict }.location
+            val districtSequence: MutableList<LocationEntity> = dijkstraForBorders.getPath(startBorder, goalBorder).vertexList
+            districtSequence.add(0, globalStart)
+            districtSequence.add(globalGoal)
+            districtSequence.zipWithNext()
+        } else {
+            listOf(globalStart to globalGoal)
+        }
+        return listOfPaths.flatMap { (from, to) ->
+            getRouteAStarSafeSpaceCached(from.id, to.id, 5000)
+        }
+    }
+
+    private lateinit var dijkstraForBorders: DijkstraShortestPath<LocationEntity, DefaultEdge>
+
+    init {
+        val borders = locationRepository.findBorders()
+        val graph = DirectedMultigraph<LocationEntity, DefaultEdge>(DefaultEdge::class.java)
+        borders.forEach {
+            graph.addVertex(it.location)
+        }
+        borders.groupBy { it.toDistrict }.forEach { (toDistrict, bordersList) ->
+            borders.filter { it.fromDistrict == toDistrict }.forEach { fromBorder ->
+                bordersList.forEach {
+                    graph.addEdge(it.location, fromBorder.location)
+                }
+            }
+        }
+        dijkstraForBorders = DijkstraShortestPath(graph)
     }
 }
