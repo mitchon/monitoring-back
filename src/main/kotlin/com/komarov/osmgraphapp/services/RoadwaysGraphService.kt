@@ -42,11 +42,13 @@ class RoadwaysGraphService(
         val roads = requestRoads()
         logger.info("Got all roads (${roads.size}) by request $requestId")
         logger.info(roads.map { it.maxSpeed }.distinct().joinToString(","))
-        val locationsWithLinks = roads.mapIndexed { i, road ->
-            road.requestLocations().also { logger.info("($i/${roads.size}) Got all nodes for way ${road.id}") }
-        }
-        val locations = locationsWithLinks.flatMap { it.first }.distinctBy { it.id }
-        val links = locationsWithLinks.flatMap { it.second }.distinctBy { (it.start.id to it.finish.id) }
+        val locationsWithLinks = roads.chunked(100)
+            .mapIndexed { i ,road ->
+                requestLocations(road).also { logger.info("${i}00/${roads.size}") }
+            }
+            .let { it.flatMap { it.first } to it.flatMap { it.second } }
+        val locations = locationsWithLinks.first.distinctBy { it.id }
+        val links = locationsWithLinks.second.distinctBy { (it.start.id to it.finish.id) }
         logger.info("Inserting by request $requestId")
         val locationEntities = locations.map {
             LocationEntity.fromModel(it)
@@ -100,13 +102,15 @@ class RoadwaysGraphService(
         }
     }
 
-    private fun Road.requestLocations(): Pair<List<Location>, List<LocationLink>> {
+    private fun requestLocations(roads: List<Road>): Pair<List<Location>, List<LocationLink>> {
         val nodesHandler = NodesHandler()
-        val nodes: MutableMap<Long, Location?> = this.nodes.associateWith { null }.toMutableMap()
+        val nodes: List<Long> = roads.flatMap { it.nodes }.distinct()
+        val locations: MutableMap<Long, Location> = mutableMapOf()
+        val roadsAssociation = roads.flatMap { road -> road.nodes.map { it to road } }.associate { it.first to it.second }
         overpass.queryElements(
             """
                 (
-                    ${nodes.keys.joinToString("\n") { "node($it);" }}
+                    ${nodes.joinToString("\n") { "node($it);" }}
                 );
                 out meta;
             """.trimIndent(),
@@ -117,38 +121,41 @@ class RoadwaysGraphService(
                 id = node.id,
                 latitude = node.position.latitude,
                 longitude = node.position.longitude,
-                district = this.district,
-                type = this.type
+                district = roadsAssociation[node.id]?.district!!,
+                type = roadsAssociation[node.id]?.type!!
             )
-            nodes[location.id] = location
+            locations[location.id] = location
         }
-        val locations = nodes.values.filterNotNull()
         if (locations.isEmpty()) return (listOf<Location>() to listOf<LocationLink>())
-        val primaryDirLinks = locations.zipWithNext().map { link ->
-            val length = countDistance(link.first, link.second)
-            LocationLink(
-                start = link.first,
-                finish = link.second,
-                length = length,
-                maxSpeed = countSpeed(this.maxSpeed)
-            )
-        }
-
-        var secondaryDirLinks = listOf<LocationLink>()
-
-        if (!this.oneway) {
-            secondaryDirLinks = locations.reversed().zipWithNext().map { link ->
+        val listOfResults = roads.mapNotNull { road ->
+            val localLocations = road.nodes.mapNotNull { locations[it] }
+            if (localLocations.isEmpty()) return@mapNotNull null
+            val primaryDirLinks = localLocations.zipWithNext().map { link ->
                 val length = countDistance(link.first, link.second)
                 LocationLink(
                     start = link.first,
                     finish = link.second,
                     length = length,
-                    maxSpeed = countSpeed(this.maxSpeed)
+                    maxSpeed = countSpeed(road.maxSpeed)
                 )
             }
-        }
 
-        return (locations to primaryDirLinks + secondaryDirLinks)
+            var secondaryDirLinks = listOf<LocationLink>()
+
+            if (!road.oneway) {
+                secondaryDirLinks = primaryDirLinks.map { link ->
+                    LocationLink(
+                        start = link.finish,
+                        finish = link.start,
+                        length = link.length,
+                        maxSpeed = link.maxSpeed
+                    )
+                }
+            }
+
+            (localLocations to primaryDirLinks + secondaryDirLinks)
+        }
+        return listOfResults.flatMap { it.first } to listOfResults.flatMap { it.second }
     }
 
     private fun requestRoads(): List<Road> {

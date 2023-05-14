@@ -38,15 +38,15 @@ interface LocationEntityJdbiRepository {
 
     @UseRowMapper(BorderWithLocationMapper::class)
     @SqlQuery(
-        "select" +
-        "l.id as l_id, l.latitude as l_latitude, l.longitude as l_longitude, l.district as l_district, l.type as l_type " +
-        "b.from_district, b.from_district " +
+        "select " +
+        "l.id as l_id, l.latitude as l_latitude, l.longitude as l_longitude, l.district as l_district, l.type as l_type, " +
+        "b.from_district, b.to_district " +
         "from master.borders b join master.locations l on b.location_id = l.id "
     )
     fun findBorders(): List<BorderEntity>
 
     @RegisterKotlinMapper(BorderInsertableEntity::class)
-    @SqlBatch("insert into master.borders values (:fromDistrict, :fromDistrict, :location)")
+    @SqlBatch("insert into master.borders values (:fromDistrict, :toDistrict, :location)")
     fun insertBordersBatch(@BindBean borders: List<BorderInsertableEntity>)
 }
 
