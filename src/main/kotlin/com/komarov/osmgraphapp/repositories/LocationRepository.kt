@@ -40,13 +40,13 @@ interface LocationEntityJdbiRepository {
     @SqlQuery(
         "select " +
         "l.id as l_id, l.latitude as l_latitude, l.longitude as l_longitude, l.district as l_district, l.type as l_type, " +
-        "b.from_district, b.to_district " +
+        "b.id as b_id, b.from_district, b.to_district " +
         "from master.borders b join master.locations l on b.location_id = l.id "
     )
     fun findBorders(): List<BorderEntity>
 
     @RegisterKotlinMapper(BorderInsertableEntity::class)
-    @SqlBatch("insert into master.borders values (:fromDistrict, :toDistrict, :location)")
+    @SqlBatch("insert into master.borders values (:id, :fromDistrict, :toDistrict, :location)")
     fun insertBordersBatch(@BindBean borders: List<BorderInsertableEntity>)
 }
 
@@ -54,6 +54,7 @@ class BorderWithLocationMapper: RowMapper<BorderEntity> {
     @Throws(SQLException::class)
     override fun map(rs: ResultSet, ctx: StatementContext): BorderEntity {
         return BorderEntity(
+            id = rs.getObject("b_id", UUID::class.java),
             fromDistrict = rs.getString("from_district"),
             toDistrict = rs.getString("to_district"),
             location = LocationEntity(

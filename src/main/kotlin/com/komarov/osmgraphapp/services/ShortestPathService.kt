@@ -30,7 +30,7 @@ class ShortestPathService(
     private val algorithm = AStarAlgorithm<Long>(distanceHeuristic)
     private val algorithmWithTime = AStarAlgorithm<Long>(timeHeuristic)
 
-    fun getRouteAStarDefault(from: Long, to: Long): List<LocationLink> {
+    fun getRouteAStarDefault(from: Long, to: Long): List<LocationLink>? {
         val locations = locationRepository.findAll()
         val links = locationLinkRepository.findAll()
         val start = locations.firstOrNull { it.id == from }?.let {
@@ -50,11 +50,11 @@ class ShortestPathService(
             links.firstOrNull { ll -> ll.start.id == it.first.id && ll.finish.id == it.second.id }!!.let {
                 locationLinkConverter.convert(it)
             }
-        } ?: throw RuntimeException("Route not found")
+        }
         return linksSet
     }
 
-    fun getRouteAStarSafeSpace(from: Long, to: Long): List<LocationLink> {
+    fun getRouteAStarSafeSpace(from: Long, to: Long): List<LocationLink>? {
         val start = locationRepository.findById(from)?.let {
             vertexConverter.convert(it)
         }
@@ -68,14 +68,14 @@ class ShortestPathService(
                 (vertexConverter.convert(it.finish) to it.length)
             }
         }
-        val segments = route?.map { it.id }?.zipWithNext() ?: throw RuntimeException("Route Not Found")
+        val segments = route?.map { it.id }?.zipWithNext() ?: return null
         val linksSet = locationLinkRepository.findByStartIdAndFinishIdIn(segments).map {
             locationLinkConverter.convert(it)
         }
         return linksSet
     }
 
-    fun getRouteAStarSafeSpaceCached(from: Long, to: Long, cacheRadius: Int): List<LocationLink> {
+    fun getRouteAStarSafeSpaceCached(from: Long, to: Long, cacheRadius: Int): List<LocationLink>? {
         val cachedNeighbors = mutableMapOf<Long, List<LocationLinkWithFinishAndStatusEntity>>()
         val start = locationRepository.findById(from)?.let {
             vertexConverter.convert(it)
@@ -94,14 +94,14 @@ class ShortestPathService(
                 vertexConverter.convert(it.finish) to it.length
             }
         }
-        val segments = route?.map { it.id }?.zipWithNext() ?: throw RuntimeException("Route Not Found")
+        val segments = route?.map { it.id }?.zipWithNext() ?: return null
         val linksSet = locationLinkRepository.findByStartIdAndFinishIdIn(segments).map {
             locationLinkConverter.convert(it)
         }
         return linksSet
     }
 
-    fun getRouteAStarSafeSpaceCachedTimeHeuristic(from: Long, to: Long, cacheRadius: Int): List<LocationLink> {
+    fun getRouteAStarSafeSpaceCachedTimeHeuristic(from: Long, to: Long, cacheRadius: Int): List<LocationLink>? {
         val cachedNeighbors = mutableMapOf<Long, List<LocationLinkWithFinishAndStatusEntity>>()
         val start = locationRepository.findById(from)?.let {
             vertexConverter.convert(it)
@@ -120,51 +120,50 @@ class ShortestPathService(
                 vertexConverter.convert(it.finish) to (it.length / ( it.maxSpeed / 3.6 ))
             }
         }
-        val segments = route?.map { it.id }?.zipWithNext() ?: throw RuntimeException("Route Not Found")
+        val segments = route?.map { it.id }?.zipWithNext() ?: return null
         val linksSet = locationLinkRepository.findByStartIdAndFinishIdIn(segments).map {
             locationLinkConverter.convert(it)
         }
         return linksSet
     }
 
-    fun getRouteAStarParallel(from: Long, to: Long): List<LocationLink> {
+    fun getRouteAStarParallel(from: Long, to: Long): List<LocationLink>? {
         val globalStart = locationRepository.findById(from)
         val globalGoal = locationRepository.findById(to)
         if (globalStart == null || globalGoal == null)
             throw RuntimeException("BadArgumentException, from or to locations are not found")
         val startDistrict = globalStart.district
         val goalDistrict = globalGoal.district
-        val listOfPaths: List<Pair<LocationEntity, LocationEntity>> = if (startDistrict != goalDistrict) {
-            val borders = locationRepository.findBorders()
-            val startBorder = borders.first { it.fromDistrict == startDistrict }.location
-            val goalBorder = borders.first { it.fromDistrict == goalDistrict }.location
-            val districtSequence: MutableList<LocationEntity> = dijkstraForBorders.getPath(startBorder, goalBorder).vertexList
-            districtSequence.add(0, globalStart)
-            districtSequence.add(globalGoal)
-            districtSequence.zipWithNext()
-        } else {
-            listOf(globalStart to globalGoal)
-        }
-        return listOfPaths.flatMap { (from, to) ->
-            getRouteAStarSafeSpaceCached(from.id, to.id, 5000)
-        }
+        val listOfTransitions: List<Pair<String, String>> =
+            dijkstraForBorders.getPath(startDistrict, goalDistrict).vertexList.zipWithNext()
+        return listOf()
     }
 
-    private lateinit var dijkstraForBorders: DijkstraShortestPath<LocationEntity, DefaultEdge>
+    private lateinit var dijkstraForBorders: DijkstraShortestPath<String, DefaultEdge>
+    private lateinit var fromToPaths: Map<Pair<String, String>, List<List<LocationLink>>>
 
     init {
         val borders = locationRepository.findBorders()
-        val graph = DirectedMultigraph<LocationEntity, DefaultEdge>(DefaultEdge::class.java)
-        borders.forEach {
-            graph.addVertex(it.location)
+        val bordersDistinct = borders.map { it.fromDistrict to it.toDistrict }.distinct()
+        val districts = listOf("ЦАО","ЮВАО","ВАО","СВАО","САО","СЗАО","ЗАО","ЮЗАО","ЮАО")
+        val graph = DirectedMultigraph<String, DefaultEdge>(DefaultEdge::class.java)
+        districts.forEach {
+            graph.addVertex(it)
         }
-        borders.groupBy { it.toDistrict }.forEach { (toDistrict, bordersList) ->
-            borders.filter { it.fromDistrict == toDistrict }.forEach { fromBorder ->
-                bordersList.forEach {
-                    graph.addEdge(it.location, fromBorder.location)
-                }
-            }
+        bordersDistinct.forEach {
+            graph.addEdge(it.first, it.second)
         }
         dijkstraForBorders = DijkstraShortestPath(graph)
+
+        val innerBorders = borders.groupBy { it.toDistrict }
+        val outerBorders = borders.groupBy { it.fromDistrict }
+
+        fromToPaths = innerBorders.flatMap { (innerK, innerV) ->
+            outerBorders[innerK]!!.flatMap { outer ->
+                innerV.map { inner ->
+                    (innerK to outer.toDistrict) to getRouteAStarSafeSpaceCached(inner.location.id, outer.location.id, 7500)
+                }
+            }
+        }.groupBy { it.first }.mapValues { (k, v) -> v.mapNotNull { it.second } }
     }
 }

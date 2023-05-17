@@ -3,17 +3,6 @@ package com.komarov.osmgraphapp.components
 import java.util.*
 import kotlin.math.*
 
-abstract class GraphAbstractAlgorithm<TVertex>(
-    protected val heuristic: Heuristic
-) {
-
-    abstract fun getRoute (
-        start: Vertex<TVertex>,
-        goal: Vertex<TVertex>,
-        neighbors: (Vertex<TVertex>) -> List<Pair<Vertex<TVertex>, Double>>
-    ): List<Vertex<TVertex>>?
-}
-
 class Vertex<TVertex> (
     val id: TVertex,
     val lat: Double,
@@ -62,10 +51,9 @@ open class TimeHeuristic: Heuristic {
 }
 
 class AStarAlgorithm<TVertex>(
-    heuristic: Heuristic
-): GraphAbstractAlgorithm<TVertex>(heuristic) {
-
-    override fun getRoute(
+    private val heuristic: Heuristic
+) {
+    fun getRoute(
         start: Vertex<TVertex>,
         goal: Vertex<TVertex>,
         neighbors: (Vertex<TVertex>) -> List<Pair<Vertex<TVertex>, Double>>

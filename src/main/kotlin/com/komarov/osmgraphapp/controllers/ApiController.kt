@@ -26,17 +26,22 @@ class ApiController(
     }
 
     @GetMapping("/route/{start}/{finish}/a-star/default")
-    fun getRouteAStarDefault(@PathVariable start: Long, @PathVariable finish: Long): List<LocationLink> {
+    fun getRouteAStarDefault(@PathVariable start: Long, @PathVariable finish: Long): List<LocationLink>? {
         return shortestPathService.getRouteAStarDefault(start, finish)
     }
 
     @GetMapping("/route/{start}/{finish}/a-star/safe-space-cached-time")
-    fun getRouteAStarSafeSpace(@PathVariable start: Long, @PathVariable finish: Long): List<LocationLink> {
+    fun getRouteAStarSafeSpace(@PathVariable start: Long, @PathVariable finish: Long): List<LocationLink>? {
         return shortestPathService.getRouteAStarSafeSpaceCachedTimeHeuristic(start, finish, 5000)
     }
 
     @GetMapping("/route/{start}/{finish}/a-star/safe-space-cached")
-    fun getRouteAStarSafeSpaceCached(@PathVariable start: Long, @PathVariable finish: Long): List<LocationLink> {
+    fun getRouteAStarSafeSpaceCached(@PathVariable start: Long, @PathVariable finish: Long): List<LocationLink>? {
         return shortestPathService.getRouteAStarSafeSpaceCached(start, finish, 5000)
+    }
+
+    @GetMapping("/route/{start}/{finish}/a-star/parallel")
+    fun getRouteAStarParallel(@PathVariable start: Long, @PathVariable finish: Long): List<LocationLink>? {
+        return shortestPathService.getRouteAStarParallel(start, finish)
     }
 }

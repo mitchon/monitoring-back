@@ -18,9 +18,6 @@ import java.util.UUID
 import java.util.concurrent.CompletableFuture
 import kotlin.math.*
 
-
-typealias BorderLocationsMap = Map<Pair<String, String>, Long>
-
 @Service
 class RoadwaysGraphService(
     private val overpass: OverpassMapDataApi,
@@ -58,34 +55,27 @@ class RoadwaysGraphService(
             LocationLinkInsertableEntity.fromModel(it)
         }
         locationLinkRepository.insertBatch(locationLinkEntities)
-        val borderLocations = findBorderLocations().map { (k, v) ->
-            BorderInsertableEntity(
-                fromDistrict = k.first,
-                toDistrict = k.second,
-                location = v
-            )
+        val borderLocations = findBorderLocations().flatMap { (k, v) ->
+            v.map {
+                BorderInsertableEntity(
+                    id = UUID.randomUUID(),
+                    fromDistrict = k.first,
+                    toDistrict = k.second,
+                    location = it
+                )
+            }
         }
         locationRepository.insertBordersBatch(borderLocations)
         logger.info("Request $requestId is fulfilled")
         return RequestResponse(requestId)
     }
 
-    private fun findBorderLocations(): BorderLocationsMap {
+    private fun findBorderLocations(): Map<Pair<String, String>, List<Long>> {
         val borderLinks = locationLinkRepository.findBorders()
         return borderLinks
             .map { (it.start.district to it.finish.district) to it.start }
-            .groupBy { it.first }.toMap()
-            .mapValues { (k, v) -> v.map { it.second } }
-            .mapValues { (k, v) ->
-                (
-                    v.firstOrNull { it.type == "primary" } ?:
-                    v.firstOrNull { it.type == "secondary" } ?:
-                    v.firstOrNull { it.type == "tertiary" } ?:
-                    v.firstOrNull { it.type == "residential" } ?:
-                    v.firstOrNull { it.type == "living_street" } ?:
-                    v.first { it.type == "unclassified" }
-                ).id
-            }
+            .groupBy { it.first }
+            .mapValues { (k, v) -> v.map { it.second.id } }
     }
 
     fun requestBuild(): RequestResponse {

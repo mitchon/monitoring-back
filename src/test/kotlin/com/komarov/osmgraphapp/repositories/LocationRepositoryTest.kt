@@ -19,7 +19,7 @@ class LocationRepositoryTest(
 
     @Test
     fun insertBatch() {
-        val values = listOf(LocationEntity(1, 1.0, 1.0), LocationEntity(2, 1.0, 1.0))
+        val values = listOf(LocationEntity(1, 1.0, 1.0, "", ""), LocationEntity(2, 1.0, 1.0, "", ""))
         val result = repository.insertBatch(values)
         Assertions.assertNotNull(result)
     }

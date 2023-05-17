@@ -62,14 +62,16 @@ class ShortestPathServiceTest(
 //                .let { logger.info("cached 500   ${it.toString().replace(".", ",")}") }
 //            stopWatch.runTaskNTimes(10) { service.getRouteAStarSafeSpaceCached(from, to, 1000) }
 //                .let { logger.info("cached 1000  ${it.toString().replace(".", ",")}") }
-            stopWatch.runTaskNTimes(10) { service.getRouteAStarSafeSpaceCached(from, to, 2500) }
-            .let { logger.info("cached 2500  ${it.toString().replace(".", ",")}") }
+//            stopWatch.runTaskNTimes(10) { service.getRouteAStarSafeSpaceCached(from, to, 2500) }
+//            .let { logger.info("cached 2500  ${it.toString().replace(".", ",")}") }
             stopWatch.runTaskNTimes(10) { service.getRouteAStarSafeSpaceCached(from, to, 5000) }
                 .let { logger.info("cached 5000  ${it.toString().replace(".", ",")}") }
             stopWatch.runTaskNTimes(10) { service.getRouteAStarSafeSpaceCached(from, to, 7500) }
                 .let { logger.info("cached 7500  ${it.toString().replace(".", ",")}") }
             stopWatch.runTaskNTimes(10) { service.getRouteAStarSafeSpaceCached(from, to, 10000) }
                 .let { logger.info("cached 10000 ${it.toString().replace(".", ",")}") }
+            stopWatch.runTaskNTimes(10) { service.getRouteAStarParallel(from, to) }
+                .let { logger.info("split  5000  ${it.toString().replace(".", ",")}") }
         }
     }
 

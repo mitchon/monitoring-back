@@ -20,9 +20,10 @@ create table if not exists master.location_links (
 );
 
 create table if not exists master.borders (
+    id uuid not null,
     from_district text not null,
     to_district text not null,
-    primary key (from_district, to_district),
+    primary key (id),
     location_id bigint not null,
     foreign key (location_id) references master.locations(id)
 );
