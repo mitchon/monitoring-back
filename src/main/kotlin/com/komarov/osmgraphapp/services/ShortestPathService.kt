@@ -29,6 +29,7 @@ class ShortestPathService(
     private val timeHeuristic = TimeHeuristic()
     private val algorithm = AStarAlgorithm<Long>(distanceHeuristic)
     private val algorithmWithTime = AStarAlgorithm<Long>(timeHeuristic)
+    private val logger = LoggerFactory.getLogger(this::class.java)
 
     fun getRouteAStarDefault(from: Long, to: Long): List<LocationLink>? {
         val locations = locationRepository.findAll()
@@ -159,9 +160,11 @@ class ShortestPathService(
         val outerBorders = borders.groupBy { it.fromDistrict }
 
         fromToPaths = innerBorders.flatMap { (innerK, innerV) ->
+            logger.info("into $innerK")
             outerBorders[innerK]!!.flatMap { outer ->
                 innerV.map { inner ->
-                    (innerK to outer.toDistrict) to getRouteAStarSafeSpaceCached(inner.location.id, outer.location.id, 7500)
+                    logger.info("from ${inner.location.id} to ${outer.location.id}")
+                    (innerK to outer.toDistrict) to getRouteAStarDefault(inner.location.id, outer.location.id)
                 }
             }
         }.groupBy { it.first }.mapValues { (k, v) -> v.mapNotNull { it.second } }

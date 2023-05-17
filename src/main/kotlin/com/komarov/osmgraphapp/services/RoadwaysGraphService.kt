@@ -72,6 +72,10 @@ class RoadwaysGraphService(
 
     private fun findBorderLocations(): Map<Pair<String, String>, List<Long>> {
         val borderLinks = locationLinkRepository.findBorders()
+            .filter {
+                !listOf("tertiary", "residential", "living_street", "unclassified")
+                    .contains(it.start.type)
+            }
         return borderLinks
             .map { (it.start.district to it.finish.district) to it.start }
             .groupBy { it.first }
