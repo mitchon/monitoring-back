@@ -16,6 +16,8 @@ repositories {
 }
 
 dependencies {
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.6.4")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-reactor:1.6.4")
     implementation ("de.westnordost:osmapi-overpass:2.0")
     implementation ("org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.5.31")
     implementation("org.springframework.boot:spring-boot-starter-web")

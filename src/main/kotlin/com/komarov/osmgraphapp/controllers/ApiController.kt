@@ -25,23 +25,23 @@ class ApiController(
         return roadwaysGraphService.requestGraph()
     }
 
-    @GetMapping("/route/{start}/{finish}/a-star/default")
-    fun getRouteAStarDefault(@PathVariable start: Long, @PathVariable finish: Long): List<LocationLink>? {
-        return shortestPathService.getRouteAStarDefault(start, finish)
+    @GetMapping("/route/{start}/{finish}/default")
+    fun default(@PathVariable start: Long, @PathVariable finish: Long): List<LocationLink>? {
+        return shortestPathService.default(start, finish)
     }
 
-    @GetMapping("/route/{start}/{finish}/a-star/safe-space-cached-time")
-    fun getRouteAStarSafeSpace(@PathVariable start: Long, @PathVariable finish: Long): List<LocationLink>? {
-        return shortestPathService.getRouteAStarSafeSpaceCachedTimeHeuristic(start, finish, 5000)
+    @GetMapping("/route/{start}/{finish}/safe-space")
+    fun safeSpace(@PathVariable start: Long, @PathVariable finish: Long): List<LocationLink>? {
+        return shortestPathService.safeSpace(start, finish)
     }
 
-    @GetMapping("/route/{start}/{finish}/a-star/safe-space-cached")
-    fun getRouteAStarSafeSpaceCached(@PathVariable start: Long, @PathVariable finish: Long): List<LocationLink>? {
-        return shortestPathService.getRouteAStarSafeSpaceCached(start, finish, 5000)
+    @GetMapping("/route/{start}/{finish}/cached")
+    fun cached(@PathVariable start: Long, @PathVariable finish: Long): List<LocationLink>? {
+        return shortestPathService.cached(start, finish, 5000)
     }
 
-    @GetMapping("/route/{start}/{finish}/a-star/parallel")
-    fun getRouteAStarParallel(@PathVariable start: Long, @PathVariable finish: Long): List<LocationLink>? {
-        return shortestPathService.getRouteAStarParallel(start, finish)
+    @GetMapping("/route/{start}/{finish}/parallel")
+    suspend fun parallel(@PathVariable start: Long, @PathVariable finish: Long): List<LocationLink>? {
+        return shortestPathService.parallel(start, finish, 5000)
     }
 }
