@@ -59,7 +59,7 @@ class ShortestPathServiceTest(
             logger.info("distance $dist")
             val stopWatch = StopWatch()
             stopWatch.runTaskNTimes(1) { service.default(from, to) }
-                .let { logger.info("default      ${it.toString().replace(".", ",")}") }
+                .let { logger.info("default       ${it.toString().replace(".", ",")}") }
 //            stopWatch.runTaskNTimes(1) { service.getRouteAStarSafeSpaceCached(from, to, 500) }
 //                .let { logger.info("cached 500   ${it.toString().replace(".", ",")}") }
 //            stopWatch.runTaskNTimes(1) { service.getRouteAStarSafeSpaceCached(from, to, 1000) }
@@ -67,13 +67,13 @@ class ShortestPathServiceTest(
 //            stopWatch.runTaskNTimes(1) { service.getRouteAStarSafeSpaceCached(from, to, 2500) }
 //            .let { logger.info("cached 2500  ${it.toString().replace(".", ",")}") }
             stopWatch.runTaskNTimes(1) { service.cached(from, to, 5000) }
-                .let { logger.info("cached 5000  ${it.toString().replace(".", ",")}") }
+                .let { logger.info("cached  5000  ${it.toString().replace(".", ",")}") }
             stopWatch.runTaskNTimes(1) { service.cached(from, to, 7500) }
-                .let { logger.info("cached 7500  ${it.toString().replace(".", ",")}") }
+                .let { logger.info("cached  7500  ${it.toString().replace(".", ",")}") }
             stopWatch.runTaskNTimes(1) { service.cached(from, to, 10000) }
-                .let { logger.info("cached 10000 ${it.toString().replace(".", ",")}") }
+                .let { logger.info("cached  10000 ${it.toString().replace(".", ",")}") }
             measureTimeMillis { runBlocking {  service.parallel(from, to, 5000) } }
-                .let { logger.info("split  5000  ${it.toString().replace(".", ",")}") }
+                .let { logger.info("parallel 5000 ${it.toString().replace(".", ",")}") }
         }
     }
 

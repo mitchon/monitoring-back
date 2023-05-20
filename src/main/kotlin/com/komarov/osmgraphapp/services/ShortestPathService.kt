@@ -7,6 +7,8 @@ import com.komarov.osmgraphapp.entities.LocationLinkWithFinishAndStatusEntity
 import com.komarov.osmgraphapp.models.LocationLink
 import com.komarov.osmgraphapp.repositories.LocationLinkRepository
 import com.komarov.osmgraphapp.repositories.LocationRepository
+import kotlinx.coroutines.async
+import kotlinx.coroutines.runBlocking
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 
@@ -122,7 +124,7 @@ class ShortestPathService(
         return linksSet
     }
 
-    suspend fun parallel(from: Long, to: Long, cacheRadius: Int): List<LocationLink>? {
+    suspend fun parallel(from: Long, to: Long, cacheRadius: Int): List<LocationLink>? = runBlocking {
         val cachedNeighbors = mutableMapOf<Long, List<LocationLinkWithFinishAndStatusEntity>>()
         val start = locationRepository.findById(from)?.let {
             vertexConverter.convert(it)
@@ -135,16 +137,18 @@ class ShortestPathService(
         cachedNeighbors.putAll(locationLinkRepository.findInRadiusAroundId(start.id, cacheRadius).groupBy { it.start })
         val route = algorithmParallel.getRoute(start, goal) { current ->
             val neighboringLinks = cachedNeighbors[current.id] ?: listOf()
-            if (neighboringLinks.any { it.needsReload })
-                cachedNeighbors.putAll(locationLinkRepository.findInRadiusAroundId(current.id, cacheRadius).groupBy { it.start })
+            async {
+                if (neighboringLinks.any { it.needsReload })
+                    cachedNeighbors.putAll(locationLinkRepository.findInRadiusAroundId(current.id, cacheRadius).groupBy { it.start })
+            }
             neighboringLinks.map {
                 vertexConverter.convert(it.finish) to it.length
             }
         }
-        val segments = route?.map { it.id }?.zipWithNext() ?: return null
+        val segments = route?.map { it.id }?.zipWithNext() ?: return@runBlocking null
         val linksSet = locationLinkRepository.findByStartIdAndFinishIdIn(segments).map {
             locationLinkConverter.convert(it)
         }
-        return linksSet
+        return@runBlocking linksSet
     }
 }
