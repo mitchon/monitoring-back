@@ -2,7 +2,6 @@ package com.komarov.osmgraphapp.components
 
 import kotlinx.coroutines.*
 import java.util.*
-import kotlin.coroutines.coroutineContext
 import kotlin.math.*
 
 class Vertex<TVertex> (
@@ -57,7 +56,7 @@ sealed interface HeuristicParallel {
 }
 
 open class DistanceHeuristicParallel: HeuristicParallel {
-    override suspend fun getEstimation(a: Vertex<*>, b: Vertex<*>): Double = runBlocking {
+    override suspend fun getEstimation(a: Vertex<*>, b: Vertex<*>): Double = coroutineScope {
         val earthRadius = 6371000.0 // in meters
         val latDiff = async { Math.toRadians(b.lat - a.lat) }
         val lonDiff = async { Math.toRadians(b.lon - a.lon) }
@@ -67,7 +66,7 @@ open class DistanceHeuristicParallel: HeuristicParallel {
         val sinLon = async { sin(lonDiff.await() / 2) }
         val a1 = sinLat.await() * sinLat.await() + cos(aLat.await()) * cos(bLat.await()) * sinLon.await() * sinLon.await()
         val a2 = 2 * atan2(sqrt(a1), sqrt(1 - a1))
-        return@runBlocking earthRadius * a2
+        return@coroutineScope earthRadius * a2
     }
 }
 
@@ -170,7 +169,6 @@ class AStarAlgorithmParallel<TVertex>(
                 return@coroutineScope buildPath(current)
             }
 
-            closedSet[current.id] = current.g
 
             val neighborsWithWeight = neighbors(current).filter { it.first.id != current.parent }
             neighborsWithWeight.map {
