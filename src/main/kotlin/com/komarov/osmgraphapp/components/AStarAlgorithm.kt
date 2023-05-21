@@ -169,6 +169,7 @@ class AStarAlgorithmParallel<TVertex>(
                 return@coroutineScope buildPath(current)
             }
 
+            closedSet[current.id] = current.g
 
             val neighborsWithWeight = neighbors(current).filter { it.first.id != current.parent }
             neighborsWithWeight.map {

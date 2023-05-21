@@ -174,11 +174,20 @@ class ShortestPathService(
             listOfTransitions[middle]
         else null
 
-        val firsHalf = async { processFw(globalStart, fw, 0) }
+        val firstHalf = async { processFw(globalStart, fw, 0) }
         val secondHalf = async { processRw(globalGoal, rw, 0) }
 
-        return@runBlocking (firsHalf.await() ?: return@runBlocking null) + (secondHalf.await()
-            ?: return@runBlocking null)
+        val way = (
+            (firstHalf.await() ?: return@runBlocking null) to
+            (secondHalf.await() ?: return@runBlocking null)
+        )
+
+        val middleStart = way.first.last().finish.id
+        val middleFinish = way.second.first().start.id
+
+        val middlePart = parallel(middleStart, middleFinish, cacheRadius) ?: return@runBlocking null
+
+        return@runBlocking way.first + middlePart + way.second
     }
 
     private suspend fun processFw(
@@ -188,7 +197,9 @@ class ShortestPathService(
     ): List<LocationLink>? {
         val borders = locationRepository.findBorders()
         val end = borders.first {
-            it.fromDistrict == segments[iteration].first && it.toDistrict == segments[iteration].second
+            it.fromDistrict == segments[iteration].first
+                && it.toDistrict == segments[iteration].second
+                && it.location.type == "primary"
         }.location
         val current = parallel(start.id, end.id, 5000) ?: return null
         if (iteration >= segments.size - 1)
@@ -206,7 +217,9 @@ class ShortestPathService(
     ): List<LocationLink>? {
         val borders = locationRepository.findBorders()
         val start = borders.first {
-            it.fromDistrict == segments[iteration].first && it.toDistrict == segments[iteration].second
+            it.fromDistrict == segments[iteration].first
+                && it.toDistrict == segments[iteration].second
+                && it.location.type == "primary"
         }.location
         val current = parallel(start.id, end.id, 5000) ?: return null
         if (iteration >= segments.size - 1)
@@ -231,8 +244,5 @@ class ShortestPathService(
             graph.addEdge(it.first, it.second)
         }
         dijkstraForBorders = DijkstraShortestPath(graph)
-
-        val innerBorders = borders.groupBy { it.toDistrict }
-        val outerBorders = borders.groupBy { it.fromDistrict }
     }
 }
