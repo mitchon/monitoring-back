@@ -16,6 +16,8 @@ import org.jgrapht.graph.DirectedMultigraph
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 
+typealias CachedType = MutableMap<Long, List<LocationLinkWithFinishAndStatusEntity>>
+
 @Service
 class ShortestPathService(
     private val locationRepository: LocationRepository,
@@ -77,7 +79,7 @@ class ShortestPathService(
     }
 
     fun cached(from: Long, to: Long, cacheRadius: Int): List<LocationLink>? {
-        val cachedNeighbors = mutableMapOf<Long, List<LocationLinkWithFinishAndStatusEntity>>()
+        val cachedNeighbors: CachedType = mutableMapOf()
         val start = locationRepository.findById(from)?.let {
             vertexConverter.convert(it)
         }
@@ -103,7 +105,7 @@ class ShortestPathService(
     }
 
     fun cachedTimeHeuristic(from: Long, to: Long, cacheRadius: Int): List<LocationLink>? {
-        val cachedNeighbors = mutableMapOf<Long, List<LocationLinkWithFinishAndStatusEntity>>()
+        val cachedNeighbors: CachedType = mutableMapOf()
         val start = locationRepository.findById(from)?.let {
             vertexConverter.convert(it)
         }
@@ -128,17 +130,9 @@ class ShortestPathService(
         return linksSet
     }
 
-    suspend fun parallel(from: Long, to: Long, cacheRadius: Int): List<LocationLink>? {
-        val cachedNeighbors = mutableMapOf<Long, List<LocationLinkWithFinishAndStatusEntity>>()
-        val start = locationRepository.findById(from)?.let {
-            vertexConverter.convert(it)
-        }
-        val goal = locationRepository.findById(to)?.let {
-            vertexConverter.convert(it)
-        }
-        if (start == null || goal == null)
-            throw RuntimeException("BadArgumentException, from or to locations are not found")
-        cachedNeighbors.putAll(locationLinkRepository.findInRadiusAroundId(start.id, cacheRadius).groupBy { it.start })
+    suspend fun parallel(from: LocationEntity, to: LocationEntity, cacheRadius: Int, cachedNeighbors: CachedType): List<Pair<Long, Long>>? {
+        val start = from.let { vertexConverter.convert(it) }
+        val goal = to.let { vertexConverter.convert(it) }
 
         val route = algorithmParallel.getRoute(start, goal) { current ->
             val neighboringLinks = cachedNeighbors[current.id] ?: listOf()
@@ -148,64 +142,84 @@ class ShortestPathService(
                 vertexConverter.convert(it.finish) to it.length
             }
         }
-        val segments = route?.map { it.id }?.zipWithNext() ?: return null
-        val linksSet = locationLinkRepository.findByStartIdAndFinishIdIn(segments).map {
-            locationLinkConverter.convert(it)
-        }
-        return linksSet
+        return route?.map { it.id }?.zipWithNext() ?: return null
     }
 
-    suspend fun parallelComplete(from: Long, to: Long, cacheRadius: Int): List<LocationLink>? = runBlocking {
+    fun parallelComplete(from: Long, to: Long, cacheRadius: Int): List<LocationLink>? = runBlocking {
         val globalStart = locationRepository.findById(from)
         val globalGoal = locationRepository.findById(to)
         if (globalStart == null || globalGoal == null)
             throw RuntimeException("BadArgumentException, from or to locations are not found")
+        val cachedNeighbors: CachedType = mutableMapOf()
+        cachedNeighbors.putAll(locationLinkRepository.findInRadiusAroundId(globalStart.id, cacheRadius).groupBy { it.start })
+
         val startDistrict = globalStart.district
         val goalDistrict = globalGoal.district
         val listOfDistricts: List<String> =
             dijkstraForBorders.getPath(startDistrict, goalDistrict).vertexList
         if (listOfDistricts.size == 1)
-            return@runBlocking parallel(globalStart.id, globalGoal.id, cacheRadius)
+            return@runBlocking parallel(globalStart, globalGoal, cacheRadius, cachedNeighbors)?.let {
+                convertRoute(it)
+            }
         val listOfTransitions = listOfDistricts.zipWithNext()
         val middle = listOfTransitions.size / 2
         val fw = listOfTransitions.slice(0 until middle)
         val rw = listOfTransitions.reversed().slice(0 until middle)
-        val extra = if (listOfTransitions.size % 2 != 0)
-            listOfTransitions[middle]
-        else null
 
-        val firstHalf = async { processFw(globalStart, fw, 0) }
-        val secondHalf = async { processRw(globalGoal, rw, 0) }
+        val firstHalf = async {
+            processFw(globalStart, fw, cacheRadius, cachedNeighbors, 0)?.let {
+                if (it.isNotEmpty())
+                    convertRoute(it)
+                else listOf()
+            }
+        }
+        val secondHalf = async {
+            processRw(globalGoal, rw, cacheRadius, cachedNeighbors, 0)?.let {
+                if (it.isNotEmpty())
+                    convertRoute(it)
+                else listOf()
+            }
+        }
 
         val way = (
             (firstHalf.await() ?: return@runBlocking null) to
             (secondHalf.await() ?: return@runBlocking null)
         )
 
-        val middleStart = way.first.last().finish.id
-        val middleFinish = way.second.first().start.id
+        val middleStart = way.first.lastOrNull()?.finish?.id?.let {
+            locationRepository.findById(it)
+        } ?: globalStart
+        val middleFinish = way.second.firstOrNull()?.start?.id?.let {
+            locationRepository.findById(it)
+        } ?: globalGoal
 
-        val middlePart = parallel(middleStart, middleFinish, cacheRadius) ?: return@runBlocking null
+        val middlePart = parallel(middleStart, middleFinish, cacheRadius, cachedNeighbors)?.let {
+            convertRoute(it)
+        } ?: return@runBlocking null
 
         return@runBlocking way.first + middlePart + way.second
+    }
+
+    private suspend fun convertRoute(route: List<Pair<Long, Long>>): List<LocationLink> {
+        return locationLinkRepository.findByStartIdAndFinishIdIn(route).map {
+            locationLinkConverter.convert(it)
+        }
     }
 
     private suspend fun processFw(
         start: LocationEntity,
         segments: List<Pair<String, String>>,
+        cacheRadius: Int,
+        cachedNeighbors: CachedType,
         iteration: Int
-    ): List<LocationLink>? {
-        val borders = locationRepository.findBorders()
-        val end = borders.first {
-            it.fromDistrict == segments[iteration].first
-                && it.toDistrict == segments[iteration].second
-                && it.location.type == "primary"
-        }.location
-        val current = parallel(start.id, end.id, 5000) ?: return null
+    ): List<Pair<Long, Long>>? {
+        if (segments.isEmpty()) return listOf()
+        val end = locationRepository.findClosestBorder(segments[iteration].first, segments[iteration].second, start.id).location
+        val current = parallel(start, end, cacheRadius, cachedNeighbors) ?: return null
         if (iteration >= segments.size - 1)
             return current
         else {
-            val next = processFw(end, segments, iteration + 1) ?: return null
+            val next = processFw(end, segments, cacheRadius, cachedNeighbors, iteration + 1) ?: return null
             return current + next
         }
     }
@@ -213,19 +227,17 @@ class ShortestPathService(
     private suspend fun processRw(
         end: LocationEntity,
         segments: List<Pair<String, String>>,
+        cacheRadius: Int,
+        cachedNeighbors: CachedType,
         iteration: Int
-    ): List<LocationLink>? {
-        val borders = locationRepository.findBorders()
-        val start = borders.first {
-            it.fromDistrict == segments[iteration].first
-                && it.toDistrict == segments[iteration].second
-                && it.location.type == "primary"
-        }.location
-        val current = parallel(start.id, end.id, 5000) ?: return null
+    ): List<Pair<Long, Long>>? {
+        if (segments.isEmpty()) return listOf()
+        val start = locationRepository.findClosestBorder(segments[iteration].first, segments[iteration].second, end.id).location
+        val current = parallel(start, end, cacheRadius, cachedNeighbors) ?: return null
         if (iteration >= segments.size - 1)
             return current
         else {
-            val next = processFw(end, segments, iteration + 1) ?: return null
+            val next = processFw(end, segments, cacheRadius, cachedNeighbors, iteration + 1) ?: return null
             return next + current
         }
     }
