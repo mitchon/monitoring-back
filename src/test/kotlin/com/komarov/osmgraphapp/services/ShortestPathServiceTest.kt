@@ -73,7 +73,7 @@ class ShortestPathServiceTest(
                 .let { logger.info("cached  7500  ${it.toString().replace(".", ",")}") }
             stopWatch.runTaskNTimes(1) { service.cached(from, to, 10000) }
                 .let { logger.info("cached  10000 ${it.toString().replace(".", ",")}") }
-            measureTimeMillis { runBlocking { service.parallelComplete(from, to, 7500) } }
+            stopWatch.runTaskNTimes(1) { service.parallelComplete(from, to, 7500) }
                 .let { logger.info("parallel 7500 ${it.toString().replace(".", ",")}") }
         }
     }

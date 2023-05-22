@@ -26,10 +26,8 @@ class ShortestPathService(
     private val vertexConverter: VertexConverter,
 ) {
     private val distanceHeuristic = DistanceHeuristic()
-    private val distanceHeuristicParallel = DistanceHeuristicParallel()
     private val timeHeuristic = TimeHeuristic()
     private val algorithm = AStarAlgorithm<Long>(distanceHeuristic)
-    private val algorithmParallel = AStarAlgorithmParallel<Long>(distanceHeuristicParallel)
     private val algorithmWithTime = AStarAlgorithm<Long>(timeHeuristic)
     private val logger = LoggerFactory.getLogger(this::class.java)
 
@@ -130,12 +128,11 @@ class ShortestPathService(
         return linksSet
     }
 
-    suspend fun parallel(from: LocationEntity, to: LocationEntity, cacheRadius: Int, cachedNeighbors: CachedType): List<Pair<Long, Long>>? {
+    fun cachedMinimal(from: LocationEntity, to: LocationEntity, cacheRadius: Int, cachedNeighbors: CachedType): List<Pair<Long, Long>>? {
         val start = from.let { vertexConverter.convert(it) }
         val goal = to.let { vertexConverter.convert(it) }
-
         cachedNeighbors[start.id] ?: cachedNeighbors.putAll(locationLinkRepository.findInRadiusAroundId(start.id, cacheRadius).groupBy { it.start })
-        val route = algorithmParallel.getRoute(start, goal) { current ->
+        val route = algorithm.getRoute(start, goal) { current ->
             val neighboringLinks = cachedNeighbors[current.id] ?: listOf()
             if (neighboringLinks.any { it.needsReload })
                 cachedNeighbors.putAll(locationLinkRepository.findInRadiusAroundId(current.id, cacheRadius).groupBy { it.start })
@@ -146,99 +143,117 @@ class ShortestPathService(
         return route?.map { it.id }?.zipWithNext() ?: return null
     }
 
-    suspend fun parallelComplete(from: Long, to: Long, cacheRadius: Int): List<LocationLink>? = withContext(Dispatchers.Default) {
+    fun parallelComplete(from: Long, to: Long, cacheRadius: Int): List<LocationLink>? {
         val globalStart = locationRepository.findById(from)
         val globalGoal = locationRepository.findById(to)
         if (globalStart == null || globalGoal == null)
             throw RuntimeException("BadArgumentException, from or to locations are not found")
         val cachedNeighbors: CachedType = mutableMapOf()
 
-        val startDistrict = globalStart.district
-        val goalDistrict = globalGoal.district
         val listOfDistricts: List<String> =
-            dijkstraForBorders.getPath(startDistrict, goalDistrict).vertexList
+            dijkstraForBorders.getPath(globalStart.district, globalGoal.district).vertexList
         if (listOfDistricts.size == 1)
-            return@withContext parallel(globalStart, globalGoal, cacheRadius, cachedNeighbors)?.let {
-                convertRoute(it)
-            }
+            return cachedMinimal(globalStart, globalGoal, cacheRadius, cachedNeighbors)?.let { convertRoute(it) }
+
         val listOfTransitions = listOfDistricts.zipWithNext()
         val middle = listOfTransitions.size / 2
-        val firstHalf = GlobalScope.async {
-            val fw = listOfTransitions.slice(0 until middle)
-            processFw(globalStart, fw, cacheRadius, cachedNeighbors, 0)?.let {
-                if (it.isNotEmpty())
-                    convertRoute(it)
-                else listOf()
-            }
-        }
-        val secondHalf = GlobalScope.async {
-            val rw = listOfTransitions.reversed().slice(0 until middle)
-            processRw(globalGoal, rw, cacheRadius, cachedNeighbors, 0)?.let {
-                if (it.isNotEmpty())
-                    convertRoute(it)
-                else listOf()
-            }
-        }
-
-        val way = (
-            (firstHalf.await() ?: return@withContext null) to
-            (secondHalf.await() ?: return@withContext null)
-        )
-
-        val middleStart = way.first.lastOrNull()?.finish?.id?.let {
+        val fw = listOfTransitions.slice(0 until middle)
+        val forwardWorker = ForwardWorker(globalStart, fw, locationRepository) { f, t -> cachedMinimal(f, t, cacheRadius, cachedNeighbors) }
+        val firstThread = Thread(forwardWorker)
+        firstThread.start()
+        val rw = listOfTransitions.reversed().slice(0 until middle)
+        val cachedNeighbors2: CachedType = mutableMapOf()
+        val reverseWorker = ReverseWorker(globalGoal, rw, locationRepository) { f, t -> cachedMinimal(f, t, cacheRadius, cachedNeighbors2) }
+        val secondThread = Thread(reverseWorker)
+        secondThread.start()
+        firstThread.join()
+        val firstHalf = forwardWorker.getResult() ?: return null
+        val middleStart = firstHalf.lastOrNull()?.second?.let {
             locationRepository.findById(it)
         } ?: globalStart
-        val middleFinish = way.second.firstOrNull()?.start?.id?.let {
+        secondThread.join()
+        val secondHalf = reverseWorker.getResult() ?: return null
+        val middleFinish = secondHalf.firstOrNull()?.first?.let {
             locationRepository.findById(it)
         } ?: globalGoal
 
-        val middlePart = parallel(middleStart, middleFinish, cacheRadius, cachedNeighbors)?.let {
-            convertRoute(it)
-        } ?: return@withContext null
+        cachedNeighbors.putAll(cachedNeighbors2)
 
-        return@withContext way.first + middlePart + way.second
+        val middlePart = cachedMinimal(middleStart, middleFinish, cacheRadius, cachedNeighbors) ?: return null
+
+        return (firstHalf + middlePart + secondHalf).let {
+            if (it.isNotEmpty())
+                convertRoute(it)
+            else listOf()
+        }
     }
 
-    private suspend fun convertRoute(route: List<Pair<Long, Long>>): List<LocationLink> {
+    private fun convertRoute(route: List<Pair<Long, Long>>): List<LocationLink> {
         return locationLinkRepository.findByStartIdAndFinishIdIn(route).map {
             locationLinkConverter.convert(it)
         }
     }
 
-    private suspend fun processFw(
-        start: LocationEntity,
-        segments: List<Pair<String, String>>,
-        cacheRadius: Int,
-        cachedNeighbors: CachedType,
-        iteration: Int
-    ): List<Pair<Long, Long>>? {
-        if (segments.isEmpty()) return listOf()
-        val end = locationRepository.findClosestBorder(segments[iteration].first, segments[iteration].second, start.id).location
-        val current = parallel(start, end, cacheRadius, cachedNeighbors) ?: return null
-        if (iteration >= segments.size - 1)
-            return current
-        else {
-            val next = processFw(end, segments, cacheRadius, cachedNeighbors, iteration + 1) ?: return null
-            return current + next
+    private class ForwardWorker(
+        private val start: LocationEntity,
+        private val segments: List<Pair<String, String>>,
+        private val locationRepository: LocationRepository,
+        private val func: (LocationEntity, LocationEntity) -> List<Pair<Long, Long>>?
+    ): java.lang.Runnable {
+        private var result: List<Pair<Long, Long>>? = null
+        override fun run() {
+            result = processFw(start, segments, 0)
         }
+
+        private fun processFw(
+            start: LocationEntity,
+            segments: List<Pair<String, String>>,
+            iteration: Int
+        ): List<Pair<Long, Long>>? {
+            if (segments.isEmpty()) return listOf()
+            val end = locationRepository.findClosestBorder(segments[iteration].first, segments[iteration].second, start.id).location
+            val current = func(start, end) ?: return null
+            if (iteration >= segments.size - 1)
+                return current
+            else {
+                val next = processFw(end, segments, iteration + 1) ?: return null
+                return current + next
+            }
+        }
+
+        fun getResult() = result
+
     }
 
-    private suspend fun processRw(
-        end: LocationEntity,
-        segments: List<Pair<String, String>>,
-        cacheRadius: Int,
-        cachedNeighbors: CachedType,
-        iteration: Int
-    ): List<Pair<Long, Long>>? {
-        if (segments.isEmpty()) return listOf()
-        val start = locationRepository.findClosestBorder(segments[iteration].first, segments[iteration].second, end.id).location
-        val current = parallel(start, end, cacheRadius, cachedNeighbors) ?: return null
-        if (iteration >= segments.size - 1)
-            return current
-        else {
-            val next = processFw(end, segments, cacheRadius, cachedNeighbors, iteration + 1) ?: return null
-            return next + current
+    private class ReverseWorker(
+        private val end: LocationEntity,
+        private val segments: List<Pair<String, String>>,
+        private val locationRepository: LocationRepository,
+        private val func: (LocationEntity, LocationEntity) -> List<Pair<Long, Long>>?
+    ): java.lang.Runnable {
+        private var result: List<Pair<Long, Long>>? = null
+        override fun run() {
+            result = processRw(end, segments, 0)
         }
+
+        private fun processRw(
+            end: LocationEntity,
+            segments: List<Pair<String, String>>,
+            iteration: Int
+        ): List<Pair<Long, Long>>? {
+            if (segments.isEmpty()) return listOf()
+            val start = locationRepository.findClosestBorder(segments[iteration].first, segments[iteration].second, end.id).location
+            val current = func(start, end) ?: return null
+            if (iteration >= segments.size - 1)
+                return current
+            else {
+                val next = processRw(end, segments, iteration + 1) ?: return null
+                return next + current
+            }
+        }
+
+        fun getResult() = result
+
     }
 
     private lateinit var dijkstraForBorders: DijkstraShortestPath<String, DefaultEdge>

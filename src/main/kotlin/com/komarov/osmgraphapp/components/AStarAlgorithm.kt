@@ -1,6 +1,5 @@
 package com.komarov.osmgraphapp.components
 
-import kotlinx.coroutines.*
 import java.util.*
 import kotlin.math.*
 
@@ -51,25 +50,6 @@ open class TimeHeuristic: Heuristic {
     }
 }
 
-sealed interface HeuristicParallel {
-    suspend fun getEstimation(a: Vertex<*>, b: Vertex<*>): Double
-}
-
-open class DistanceHeuristicParallel: HeuristicParallel {
-    override suspend fun getEstimation(a: Vertex<*>, b: Vertex<*>): Double = withContext(Dispatchers.Default) {
-        val earthRadius = 6371000.0 // in meters
-        val latDiff = GlobalScope.async { Math.toRadians(b.lat - a.lat) }
-        val lonDiff = GlobalScope.async { Math.toRadians(b.lon - a.lon) }
-        val aLat = GlobalScope.async { Math.toRadians(a.lat) }
-        val bLat = GlobalScope.async { Math.toRadians(b.lat) }
-        val sinLat = GlobalScope.async { sin(latDiff.await() / 2) }
-        val sinLon = GlobalScope.async { sin(lonDiff.await() / 2) }
-        val a1 = sinLat.await() * sinLat.await() + cos(aLat.await()) * cos(bLat.await()) * sinLon.await() * sinLon.await()
-        val a2 = 2 * atan2(sqrt(a1), sqrt(1 - a1))
-        return@withContext earthRadius * a2
-    }
-}
-
 class AStarAlgorithm<TVertex>(
     private val heuristic: Heuristic
 ) {
@@ -113,73 +93,6 @@ class AStarAlgorithm<TVertex>(
         }
 
         return null
-    }
-
-    private fun buildPath(current: Vertex<TVertex>): List<Vertex<TVertex>> {
-        val path = mutableListOf<Vertex<TVertex>>(current)
-        var temp: Vertex<TVertex>? = current.parent
-        while (temp != null) {
-            path.add(0, temp)
-            temp = temp.parent
-        }
-        return path
-    }
-}
-
-class AStarAlgorithmParallel<TVertex>(
-    private val heuristic: HeuristicParallel
-) {
-
-    suspend fun getRoute(
-        start: Vertex<TVertex>,
-        goal: Vertex<TVertex>,
-        neighbors: (Vertex<TVertex>) -> List<Pair<Vertex<TVertex>, Double>>
-    ): List<Vertex<TVertex>>? = withContext(Dispatchers.Default) {
-        val openList = PriorityQueue<Vertex<TVertex>>(compareBy { it.f })
-        val closedSet = mutableMapOf<TVertex, Double>()
-
-        start.g = 0.0
-        start.h = heuristic.getEstimation(start, goal)
-        openList.add(start)
-
-        suspend fun neighborWorker(
-            neighborWithWeight: Pair<Vertex<TVertex>, Double>,
-            current: Vertex<TVertex>
-        ): Vertex<TVertex>? {
-            val neighbor = neighborWithWeight.first
-            val score = current.g + neighborWithWeight.second
-
-            val previousG = closedSet[neighbor.id] ?: neighbor.g
-            if (closedSet[neighbor.id] != null && score >= previousG)
-                return null
-
-            neighbor.parent = current
-            neighbor.g = score
-            neighbor.h = heuristic.getEstimation(neighbor, goal)
-
-            return if (!openList.map { it.id }.contains(neighbor.id)) {
-                return neighbor
-            } else null
-        }
-
-        while (openList.isNotEmpty()) {
-            val current = openList.poll()
-
-            if (current.id == goal.id) {
-                return@withContext buildPath(current)
-            }
-
-            closedSet[current.id] = current.g
-
-            val neighborsWithWeight = neighbors(current).filter { it.first.id != current.parent }
-            neighborsWithWeight.map {
-                GlobalScope.async { neighborWorker(it, current) }
-            }.awaitAll().filterNotNull().forEach {
-                openList.add(it)
-            }
-        }
-
-        return@withContext null
     }
 
     private fun buildPath(current: Vertex<TVertex>): List<Vertex<TVertex>> {
