@@ -1,6 +1,7 @@
 package com.komarov.osmgraphapp.services
 
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import org.junit.jupiter.api.Test
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Autowired
@@ -72,7 +73,7 @@ class ShortestPathServiceTest(
                 .let { logger.info("cached  7500  ${it.toString().replace(".", ",")}") }
             stopWatch.runTaskNTimes(1) { service.cached(from, to, 10000) }
                 .let { logger.info("cached  10000 ${it.toString().replace(".", ",")}") }
-            stopWatch.runTaskNTimes(1) { service.parallelComplete(from, to, 7500) }
+            measureTimeMillis { runBlocking { service.parallelComplete(from, to, 7500) } }
                 .let { logger.info("parallel 7500 ${it.toString().replace(".", ",")}") }
         }
     }

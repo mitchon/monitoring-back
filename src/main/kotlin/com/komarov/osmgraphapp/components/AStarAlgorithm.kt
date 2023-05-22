@@ -56,17 +56,17 @@ sealed interface HeuristicParallel {
 }
 
 open class DistanceHeuristicParallel: HeuristicParallel {
-    override suspend fun getEstimation(a: Vertex<*>, b: Vertex<*>): Double = coroutineScope {
+    override suspend fun getEstimation(a: Vertex<*>, b: Vertex<*>): Double = withContext(Dispatchers.Default) {
         val earthRadius = 6371000.0 // in meters
-        val latDiff = async { Math.toRadians(b.lat - a.lat) }
-        val lonDiff = async { Math.toRadians(b.lon - a.lon) }
-        val aLat = async { Math.toRadians(a.lat) }
-        val bLat = async { Math.toRadians(b.lat) }
-        val sinLat = async { sin(latDiff.await() / 2) }
-        val sinLon = async { sin(lonDiff.await() / 2) }
+        val latDiff = GlobalScope.async { Math.toRadians(b.lat - a.lat) }
+        val lonDiff = GlobalScope.async { Math.toRadians(b.lon - a.lon) }
+        val aLat = GlobalScope.async { Math.toRadians(a.lat) }
+        val bLat = GlobalScope.async { Math.toRadians(b.lat) }
+        val sinLat = GlobalScope.async { sin(latDiff.await() / 2) }
+        val sinLon = GlobalScope.async { sin(lonDiff.await() / 2) }
         val a1 = sinLat.await() * sinLat.await() + cos(aLat.await()) * cos(bLat.await()) * sinLon.await() * sinLon.await()
         val a2 = 2 * atan2(sqrt(a1), sqrt(1 - a1))
-        return@coroutineScope earthRadius * a2
+        return@withContext earthRadius * a2
     }
 }
 
@@ -134,7 +134,7 @@ class AStarAlgorithmParallel<TVertex>(
         start: Vertex<TVertex>,
         goal: Vertex<TVertex>,
         neighbors: (Vertex<TVertex>) -> List<Pair<Vertex<TVertex>, Double>>
-    ): List<Vertex<TVertex>>? = coroutineScope {
+    ): List<Vertex<TVertex>>? = withContext(Dispatchers.Default) {
         val openList = PriorityQueue<Vertex<TVertex>>(compareBy { it.f })
         val closedSet = mutableMapOf<TVertex, Double>()
 
@@ -166,20 +166,20 @@ class AStarAlgorithmParallel<TVertex>(
             val current = openList.poll()
 
             if (current.id == goal.id) {
-                return@coroutineScope buildPath(current)
+                return@withContext buildPath(current)
             }
 
             closedSet[current.id] = current.g
 
             val neighborsWithWeight = neighbors(current).filter { it.first.id != current.parent }
             neighborsWithWeight.map {
-                async { neighborWorker(it, current) }
+                GlobalScope.async { neighborWorker(it, current) }
             }.awaitAll().filterNotNull().forEach {
                 openList.add(it)
             }
         }
 
-        return@coroutineScope null
+        return@withContext null
     }
 
     private fun buildPath(current: Vertex<TVertex>): List<Vertex<TVertex>> {

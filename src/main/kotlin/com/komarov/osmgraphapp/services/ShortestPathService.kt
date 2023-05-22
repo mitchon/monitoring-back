@@ -8,13 +8,13 @@ import com.komarov.osmgraphapp.entities.LocationLinkWithFinishAndStatusEntity
 import com.komarov.osmgraphapp.models.LocationLink
 import com.komarov.osmgraphapp.repositories.LocationLinkRepository
 import com.komarov.osmgraphapp.repositories.LocationRepository
-import kotlinx.coroutines.async
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.*
 import org.jgrapht.alg.shortestpath.DijkstraShortestPath
 import org.jgrapht.graph.DefaultEdge
 import org.jgrapht.graph.DirectedMultigraph
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
+import kotlin.system.measureTimeMillis
 
 typealias CachedType = MutableMap<Long, List<LocationLinkWithFinishAndStatusEntity>>
 
@@ -134,6 +134,7 @@ class ShortestPathService(
         val start = from.let { vertexConverter.convert(it) }
         val goal = to.let { vertexConverter.convert(it) }
 
+        cachedNeighbors[start.id] ?: cachedNeighbors.putAll(locationLinkRepository.findInRadiusAroundId(start.id, cacheRadius).groupBy { it.start })
         val route = algorithmParallel.getRoute(start, goal) { current ->
             val neighboringLinks = cachedNeighbors[current.id] ?: listOf()
             if (neighboringLinks.any { it.needsReload })
@@ -145,35 +146,33 @@ class ShortestPathService(
         return route?.map { it.id }?.zipWithNext() ?: return null
     }
 
-    fun parallelComplete(from: Long, to: Long, cacheRadius: Int): List<LocationLink>? = runBlocking {
+    suspend fun parallelComplete(from: Long, to: Long, cacheRadius: Int): List<LocationLink>? = withContext(Dispatchers.Default) {
         val globalStart = locationRepository.findById(from)
         val globalGoal = locationRepository.findById(to)
         if (globalStart == null || globalGoal == null)
             throw RuntimeException("BadArgumentException, from or to locations are not found")
         val cachedNeighbors: CachedType = mutableMapOf()
-        cachedNeighbors.putAll(locationLinkRepository.findInRadiusAroundId(globalStart.id, cacheRadius).groupBy { it.start })
 
         val startDistrict = globalStart.district
         val goalDistrict = globalGoal.district
         val listOfDistricts: List<String> =
             dijkstraForBorders.getPath(startDistrict, goalDistrict).vertexList
         if (listOfDistricts.size == 1)
-            return@runBlocking parallel(globalStart, globalGoal, cacheRadius, cachedNeighbors)?.let {
+            return@withContext parallel(globalStart, globalGoal, cacheRadius, cachedNeighbors)?.let {
                 convertRoute(it)
             }
         val listOfTransitions = listOfDistricts.zipWithNext()
         val middle = listOfTransitions.size / 2
-        val fw = listOfTransitions.slice(0 until middle)
-        val rw = listOfTransitions.reversed().slice(0 until middle)
-
-        val firstHalf = async {
+        val firstHalf = GlobalScope.async {
+            val fw = listOfTransitions.slice(0 until middle)
             processFw(globalStart, fw, cacheRadius, cachedNeighbors, 0)?.let {
                 if (it.isNotEmpty())
                     convertRoute(it)
                 else listOf()
             }
         }
-        val secondHalf = async {
+        val secondHalf = GlobalScope.async {
+            val rw = listOfTransitions.reversed().slice(0 until middle)
             processRw(globalGoal, rw, cacheRadius, cachedNeighbors, 0)?.let {
                 if (it.isNotEmpty())
                     convertRoute(it)
@@ -182,8 +181,8 @@ class ShortestPathService(
         }
 
         val way = (
-            (firstHalf.await() ?: return@runBlocking null) to
-            (secondHalf.await() ?: return@runBlocking null)
+            (firstHalf.await() ?: return@withContext null) to
+            (secondHalf.await() ?: return@withContext null)
         )
 
         val middleStart = way.first.lastOrNull()?.finish?.id?.let {
@@ -195,9 +194,9 @@ class ShortestPathService(
 
         val middlePart = parallel(middleStart, middleFinish, cacheRadius, cachedNeighbors)?.let {
             convertRoute(it)
-        } ?: return@runBlocking null
+        } ?: return@withContext null
 
-        return@runBlocking way.first + middlePart + way.second
+        return@withContext way.first + middlePart + way.second
     }
 
     private suspend fun convertRoute(route: List<Pair<Long, Long>>): List<LocationLink> {
