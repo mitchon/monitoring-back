@@ -17,14 +17,14 @@ class ShortestPathServiceTest(
     private val logger = LoggerFactory.getLogger(this::class.java)
 
     private val listOfInputs = listOf<Pair<Pair<Long, Long>, Int>>(
-        (6278590964L to 1395536006L) to 167,
-        (314687931L to 274257902L) to 236,
-        (3178051172L to 9837040169L) to 401,
+//        (6278590964L to 1395536006L) to 167,
+//        (314687931L to 274257902L) to 236,
+//        (3178051172L to 9837040169L) to 401,
 //        (248048033L to 3067976320L) to 784,
-        (252931894L to 92338488L) to 1026,
-        (335463849L to 8507900648L) to 1590,
-        (253951166L to 499953776L) to 2886,
-        (8196509364L to 2513308832L) to 4847,
+//        (252931894L to 92338488L) to 1026,
+//        (335463849L to 8507900648L) to 1590,
+//        (253951166L to 499953776L) to 2886,
+//        (8196509364L to 2513308832L) to 4847,
         (3885130156L to 5116889369L) to 6373,
         (2106224195L to 3871088028L) to 8130,
         (667288052L to 10703096931L) to 9422,
@@ -60,21 +60,21 @@ class ShortestPathServiceTest(
             logger.info("distance $dist")
             val stopWatch = StopWatch()
 //            stopWatch.runTaskNTimes(1) { service.default(from, to) }
-//                .let { logger.info("default       ${it.toString().replace(".", ",")}") }
+//                .let { logger.info("default        ${it.toString().replace(".", ",")}") }
 //            stopWatch.runTaskNTimes(1) { service.getRouteAStarSafeSpaceCached(from, to, 500) }
-//                .let { logger.info("cached 500   ${it.toString().replace(".", ",")}") }
+//                .let { logger.info("cached 500     ${it.toString().replace(".", ",")}") }
 //            stopWatch.runTaskNTimes(1) { service.getRouteAStarSafeSpaceCached(from, to, 1000) }
-//                .let { logger.info("cached 1000  ${it.toString().replace(".", ",")}") }
+//                .let { logger.info("cached 1000    ${it.toString().replace(".", ",")}") }
 //            stopWatch.runTaskNTimes(1) { service.getRouteAStarSafeSpaceCached(from, to, 2500) }
-//            .let { logger.info("cached 2500  ${it.toString().replace(".", ",")}") }
+//                .let { logger.info("cached 2500    ${it.toString().replace(".", ",")}") }
             stopWatch.runTaskNTimes(1) { service.cached(from, to, 5000) }
-                .let { logger.info("cached  5000  ${it.toString().replace(".", ",")}") }
+                .let { logger.info("cached  5000   ${it.toString().replace(".", ",")}") }
             stopWatch.runTaskNTimes(1) { service.cached(from, to, 7500) }
-                .let { logger.info("cached  7500  ${it.toString().replace(".", ",")}") }
+                .let { logger.info("cached  7500   ${it.toString().replace(".", ",")}") }
             stopWatch.runTaskNTimes(1) { service.cached(from, to, 10000) }
-                .let { logger.info("cached  10000 ${it.toString().replace(".", ",")}") }
-            stopWatch.runTaskNTimes(1) { service.parallelComplete(from, to, 7500) }
-                .let { logger.info("parallel 7500 ${it.toString().replace(".", ",")}") }
+                .let { logger.info("cached  10000  ${it.toString().replace(".", ",")}") }
+            stopWatch.runTaskNTimes(1) { service.parallelComplete(from, to, 10000) }
+                .let { logger.info("parallel 10000 ${it.toString().replace(".", ",")}") }
         }
     }
 
