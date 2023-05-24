@@ -141,7 +141,7 @@ class ShortestPathService(
                 vertexConverter.convert(it.finish) to it.length
             }
         }
-        return route?.map { it.id }?.zipWithNext() ?: return null
+        return route?.map { it.id }?.zipWithNext()
     }
 
     fun parallelComplete(from: Long, to: Long, cacheRadius: Int): List<LocationLink>? {
