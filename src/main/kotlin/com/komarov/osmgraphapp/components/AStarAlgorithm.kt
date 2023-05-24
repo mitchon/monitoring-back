@@ -74,7 +74,7 @@ class AStarAlgorithm<TVertex>(
 
             closedSet[current.id] = current.g
 
-            for (neighborWithWeight in neighbors(current).filter { it.first.id != current.parent }) {
+            for (neighborWithWeight in neighbors(current)) {
                 val neighbor = neighborWithWeight.first
                 val score = current.g + neighborWithWeight.second
 

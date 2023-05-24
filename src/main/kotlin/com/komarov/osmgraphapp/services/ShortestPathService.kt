@@ -5,10 +5,10 @@ import com.komarov.osmgraphapp.converters.LocationLinkConverter
 import com.komarov.osmgraphapp.converters.VertexConverter
 import com.komarov.osmgraphapp.entities.LocationEntity
 import com.komarov.osmgraphapp.entities.LocationLinkWithFinishAndStatusEntity
+import com.komarov.osmgraphapp.entities.LocationLinkWithFinishEntity
 import com.komarov.osmgraphapp.models.LocationLink
 import com.komarov.osmgraphapp.repositories.LocationLinkRepository
 import com.komarov.osmgraphapp.repositories.LocationRepository
-import kotlinx.coroutines.*
 import org.jgrapht.alg.shortestpath.DijkstraShortestPath
 import org.jgrapht.graph.DefaultEdge
 import org.jgrapht.graph.DirectedMultigraph
@@ -17,7 +17,8 @@ import org.springframework.stereotype.Service
 import java.util.concurrent.Callable
 import java.util.concurrent.Executors
 
-typealias CachedType = MutableMap<Long, List<LocationLinkWithFinishAndStatusEntity>>
+typealias CachedTypeStatused = MutableMap<Long, List<LocationLinkWithFinishAndStatusEntity>>
+typealias CachedType = Map<Long, List<LocationLinkWithFinishEntity>>
 
 @Service
 class ShortestPathService(
@@ -78,7 +79,7 @@ class ShortestPathService(
     }
 
     fun cached(from: Long, to: Long, cacheRadius: Int): List<LocationLink>? {
-        val cachedNeighbors: CachedType = mutableMapOf()
+        val cachedNeighbors: CachedTypeStatused = mutableMapOf()
         val start = locationRepository.findById(from)?.let {
             vertexConverter.convert(it)
         }
@@ -104,7 +105,7 @@ class ShortestPathService(
     }
 
     fun cachedTimeHeuristic(from: Long, to: Long, cacheRadius: Int): List<LocationLink>? {
-        val cachedNeighbors: CachedType = mutableMapOf()
+        val cachedNeighbors: CachedTypeStatused = mutableMapOf()
         val start = locationRepository.findById(from)?.let {
             vertexConverter.convert(it)
         }
@@ -129,33 +130,28 @@ class ShortestPathService(
         return linksSet
     }
 
-    fun cachedMinimal(from: LocationEntity, to: LocationEntity, cacheRadius: Int, cachedNeighbors: CachedType): List<Pair<Long, Long>>? {
-        val start = from.let { vertexConverter.convert(it) }
-        val goal = to.let { vertexConverter.convert(it) }
-        cachedNeighbors[start.id] ?: cachedNeighbors.putAll(locationLinkRepository.findInRadiusAroundId(start.id, cacheRadius).groupBy { it.start })
+    fun cachedByDistrict(from: LocationEntity, to: LocationEntity, cache: CachedType): List<Pair<Long, Long>>? {
+        val start = vertexConverter.convert(from)
+        val goal = vertexConverter.convert(to)
         val route = algorithm.getRoute(start, goal) { current ->
-            val neighboringLinks = cachedNeighbors[current.id] ?: listOf()
-            if (neighboringLinks.any { it.needsReload })
-                cachedNeighbors.putAll(locationLinkRepository.findInRadiusAroundId(current.id, cacheRadius).groupBy { it.start })
-            neighboringLinks.map {
+            cache[current.id]?.map {
                 vertexConverter.convert(it.finish) to it.length
-            }
+            } ?: listOf()
         }
         return route?.map { it.id }?.zipWithNext()
     }
 
-    fun parallelComplete(from: Long, to: Long, cacheRadius: Int): List<LocationLink>? {
+    fun parallelByDistrict(from: Long, to: Long): List<LocationLink>? {
         val globalStart = locationRepository.findById(from)
         val globalGoal = locationRepository.findById(to)
         if (globalStart == null || globalGoal == null)
             throw RuntimeException("BadArgumentException, from or to locations are not found")
-        val cachedNeighbors: CachedType = mutableMapOf()
-        cachedNeighbors.putAll(locationLinkRepository.findInRadiusAroundId(globalStart.id, cacheRadius).groupBy { it.start })
 
         val listOfDistricts: List<String> =
             dijkstraForBorders.getPath(globalStart.district, globalGoal.district).vertexList
+        val cache = locationLinkRepository.findInDistrict(listOfDistricts).groupBy { it.start }
         if (listOfDistricts.size == 1)
-            return cachedMinimal(globalStart, globalGoal, cacheRadius, cachedNeighbors)?.let { convertRoute(it) }
+            return cachedByDistrict(globalStart, globalGoal, cache)?.let { convertRoute(it) }
 
         val listOfTransitions = listOfDistricts.zipWithNext()
         val middle = listOfTransitions.size / 2
@@ -177,7 +173,7 @@ class ShortestPathService(
         val executor = Executors.newFixedThreadPool(routeSections.size)
         val workers = routeSections.map {
             Callable<List<Pair<Long, Long>>?> {
-                cachedMinimal(it.first, it.second, cacheRadius, cachedNeighbors)
+                cachedByDistrict(it.first, it.second, cache)
             }
         }
         executor.invokeAll(workers)

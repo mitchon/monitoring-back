@@ -25,8 +25,8 @@ class ShortestPathServiceTest(
 //        (335463849L to 8507900648L) to 1590,
 //        (253951166L to 499953776L) to 2886,
 //        (8196509364L to 2513308832L) to 4847,
-        (3885130156L to 5116889369L) to 6373,
-        (2106224195L to 3871088028L) to 8130,
+//        (3885130156L to 5116889369L) to 6373,
+//        (2106224195L to 3871088028L) to 8130,
         (667288052L to 10703096931L) to 9422,
         (302112360L to 7707691957L) to 11321,
         (7812832302L to 91326566L) to 13063,
@@ -67,13 +67,13 @@ class ShortestPathServiceTest(
 //                .let { logger.info("cached 1000    ${it.toString().replace(".", ",")}") }
 //            stopWatch.runTaskNTimes(1) { service.getRouteAStarSafeSpaceCached(from, to, 2500) }
 //                .let { logger.info("cached 2500    ${it.toString().replace(".", ",")}") }
-            stopWatch.runTaskNTimes(1) { service.cached(from, to, 5000) }
-                .let { logger.info("cached  5000   ${it.toString().replace(".", ",")}") }
+//            stopWatch.runTaskNTimes(1) { service.cached(from, to, 5000) }
+//                .let { logger.info("cached  5000   ${it.toString().replace(".", ",")}") }
             stopWatch.runTaskNTimes(1) { service.cached(from, to, 7500) }
                 .let { logger.info("cached  7500   ${it.toString().replace(".", ",")}") }
             stopWatch.runTaskNTimes(1) { service.cached(from, to, 10000) }
                 .let { logger.info("cached  10000  ${it.toString().replace(".", ",")}") }
-            stopWatch.runTaskNTimes(1) { service.parallelComplete(from, to, 10000) }
+            stopWatch.runTaskNTimes(1) { service.parallelByDistrict(from, to) }
                 .let { logger.info("parallel 10000 ${it.toString().replace(".", ",")}") }
         }
     }

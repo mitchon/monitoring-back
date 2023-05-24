@@ -8,6 +8,7 @@ import org.jdbi.v3.core.statement.StatementContext
 import org.jdbi.v3.sqlobject.customizer.Bind
 import org.jdbi.v3.sqlobject.customizer.BindBean
 import org.jdbi.v3.sqlobject.customizer.BindBeanList
+import org.jdbi.v3.sqlobject.customizer.BindList
 import org.jdbi.v3.sqlobject.kotlin.RegisterKotlinMapper
 import org.jdbi.v3.sqlobject.statement.SqlBatch
 import org.jdbi.v3.sqlobject.statement.SqlQuery
@@ -70,6 +71,15 @@ interface LocationLinkEntityJdbiRepository {
         "geometry(point(s.longitude, s.latitude)), geometry(point(center.longitude, center.latitude))" +
         ") <= :radius")
     fun findInRadiusAroundId(@Bind("id") id: Long, @Bind("radius") radius: Int): List<LocationLinkWithFinishAndStatusEntity>
+
+    @UseRowMapper(LocationLinkWithFinishMapper::class)
+    @SqlQuery("select " +
+        "s.id as s_id, " +
+        "f.id as f_id, f.latitude as f_latitude, f.longitude as f_longitude, f.district as f_district, f.type as f_type, " +
+        "ll.length, ll.max_speed " +
+        "from location_links ll join locations s on ll.start = s.id join locations f on ll.finish = f.id " +
+        "where s.district in (<districts>) or f.district in (<districts>)")
+    fun findInDistrict(@BindList("districts") districts: List<String>): List<LocationLinkWithFinishEntity>
 
     @UseRowMapper(LocationLinkWithLocationsMapper::class)
     @SqlQuery("select " +
@@ -174,4 +184,6 @@ class LocationLinkRepository(
     fun deleteAll() = jdbiRepository.deleteAll()
 
     fun findBorders() = jdbiRepository.findBorders()
+
+    fun findInDistrict(districts: List<String>) = jdbiRepository.findInDistrict(districts)
 }

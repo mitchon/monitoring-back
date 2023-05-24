@@ -42,6 +42,6 @@ class ApiController(
 
     @GetMapping("/route/{start}/{finish}/parallel")
     suspend fun parallel(@PathVariable start: Long, @PathVariable finish: Long): List<LocationLink>? {
-        return shortestPathService.parallelComplete(start, finish, 5000)
+        return shortestPathService.parallelByDistrict(start, finish)
     }
 }
