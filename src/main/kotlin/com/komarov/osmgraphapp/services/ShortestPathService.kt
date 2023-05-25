@@ -131,12 +131,13 @@ class ShortestPathService(
     }
 
     fun cachedByDistrict(from: LocationEntity, to: LocationEntity, cache: CachedType): List<Pair<Long, Long>>? {
+        val localCache: CachedType = mutableMapOf()
         val start = vertexConverter.convert(from)
         val goal = vertexConverter.convert(to)
         val route = algorithm.getRoute(start, goal) { current ->
-            cache[current.id]?.map {
-                vertexConverter.convert(it.finish) to it.length
-            } ?: listOf()
+            (cache[current.id] ?: locationLinkRepository.findByStartId(current.id))
+                .map { vertexConverter.convert(it.finish) to it.length }
+            TODO("сделать проверку нейборов на дистрикт как уже было, искать нейборов в глобальном и локальном кешике")
         }
         return route?.map { it.id }?.zipWithNext()
     }
@@ -150,6 +151,7 @@ class ShortestPathService(
         val listOfDistricts: List<String> =
             dijkstraForBorders.getPath(globalStart.district, globalGoal.district).vertexList
         val cache = locationLinkRepository.findInDistrict(listOfDistricts).groupBy { it.start }
+//        val cache = locationLinkRepository.findInDistrict(listOf("ЦАО","ЮВАО","ВАО","СВАО","САО","СЗАО","ЗАО","ЮЗАО","ЮАО")).groupBy { it.start }
         if (listOfDistricts.size == 1)
             return cachedByDistrict(globalStart, globalGoal, cache)?.let { convertRoute(it) }
 
@@ -178,7 +180,7 @@ class ShortestPathService(
         }
         executor.invokeAll(workers)
         return workers.flatMap {
-            it.call() ?: return null
+            it.call() ?: listOf()
         }.let { convertRoute(it) }
     }
 
