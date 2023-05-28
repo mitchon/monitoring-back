@@ -82,11 +82,10 @@ class AStarAlgorithm<TVertex>(
                 if (closedSet[neighbor.id] != null && score >= previousG)
                     continue
 
-                neighbor.parent = current
-                neighbor.g = score
-                neighbor.h = heuristic.getEstimation(neighbor, goal)
-
                 if (!openList.map { it.id }.contains(neighbor.id)) {
+                    neighbor.parent = current
+                    neighbor.g = score
+                    neighbor.h = heuristic.getEstimation(neighbor, goal)
                     openList.add(neighbor)
                 }
             }

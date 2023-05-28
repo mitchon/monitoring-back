@@ -130,14 +130,25 @@ class ShortestPathService(
         return linksSet
     }
 
-    fun cachedByDistrict(from: LocationEntity, to: LocationEntity, cache: CachedType): List<Pair<Long, Long>>? {
-        val localCache: CachedType = mutableMapOf()
+    fun cachedByDistrict(from: LocationEntity, to: LocationEntity, cache: CachedType, districts: List<String>): List<Pair<Long, Long>>? {
+        val localCache = mutableMapOf<Long, List<LocationLinkWithFinishEntity>>()
         val start = vertexConverter.convert(from)
         val goal = vertexConverter.convert(to)
         val route = algorithm.getRoute(start, goal) { current ->
-            (cache[current.id] ?: locationLinkRepository.findByStartId(current.id))
-                .map { vertexConverter.convert(it.finish) to it.length }
-            TODO("сделать проверку нейборов на дистрикт как уже было, искать нейборов в глобальном и локальном кешике")
+            val neighbors = cache[current.id] ?: localCache[current.id] ?: listOf()
+            if (neighbors.any { !districts.contains(it.finish.district) && localCache[it.finish.id] == null }) {
+                localCache.putAll(
+                    locationLinkRepository.findInRadiusAroundId(current.id, 500).map {
+                        LocationLinkWithFinishEntity(
+                            start = it.start,
+                            finish = it.finish,
+                            length = it.length,
+                            maxSpeed = it.maxSpeed
+                        )
+                    }.groupBy { it.start }
+                )
+            }
+            neighbors.map { vertexConverter.convert(it.finish) to it.length }
         }
         return route?.map { it.id }?.zipWithNext()
     }
@@ -153,7 +164,7 @@ class ShortestPathService(
         val cache = locationLinkRepository.findInDistrict(listOfDistricts).groupBy { it.start }
 //        val cache = locationLinkRepository.findInDistrict(listOf("ЦАО","ЮВАО","ВАО","СВАО","САО","СЗАО","ЗАО","ЮЗАО","ЮАО")).groupBy { it.start }
         if (listOfDistricts.size == 1)
-            return cachedByDistrict(globalStart, globalGoal, cache)?.let { convertRoute(it) }
+            return cachedByDistrict(globalStart, globalGoal, cache, listOfDistricts)?.let { convertRoute(it) }
 
         val listOfTransitions = listOfDistricts.zipWithNext()
         val middle = listOfTransitions.size / 2
@@ -175,7 +186,7 @@ class ShortestPathService(
         val executor = Executors.newFixedThreadPool(routeSections.size)
         val workers = routeSections.map {
             Callable<List<Pair<Long, Long>>?> {
-                cachedByDistrict(it.first, it.second, cache)
+                cachedByDistrict(it.first, it.second, cache, listOfDistricts)
             }
         }
         executor.invokeAll(workers)
