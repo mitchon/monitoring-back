@@ -31,7 +31,6 @@ class ShortestPathService(
     private val timeHeuristic = TimeHeuristic()
     private val algorithm = AStarAlgorithm<Long>(distanceHeuristic)
     private val algorithmWithTime = AStarAlgorithm<Long>(timeHeuristic)
-    private val logger = LoggerFactory.getLogger(this::class.java)
 
     fun default(from: Long, to: Long): List<LocationLink>? {
         val locations = locationRepository.findAll()
@@ -162,7 +161,6 @@ class ShortestPathService(
         val listOfDistricts: List<String> =
             dijkstraForBorders.getPath(globalStart.district, globalGoal.district).vertexList
         val cache = locationLinkRepository.findInDistrict(listOfDistricts).groupBy { it.start }
-//        val cache = locationLinkRepository.findInDistrict(listOf("ЦАО","ЮВАО","ВАО","СВАО","САО","СЗАО","ЗАО","ЮЗАО","ЮАО")).groupBy { it.start }
         if (listOfDistricts.size == 1)
             return cachedByDistrict(globalStart, globalGoal, cache, listOfDistricts)?.let { convertRoute(it) }
 

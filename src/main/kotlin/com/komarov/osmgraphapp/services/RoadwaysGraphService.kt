@@ -15,7 +15,6 @@ import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import java.lang.Character.isDigit
 import java.util.UUID
-import java.util.concurrent.CompletableFuture
 import kotlin.math.*
 
 @Service
@@ -27,11 +26,8 @@ class RoadwaysGraphService(
     private val locationLinkConverter: LocationLinkConverter
 ) {
     private val logger = LoggerFactory.getLogger(this::class.java)
-    private val boundingBox = BoundingBoxTemplate.maxBoundingBox
 
-    private var task = CompletableFuture<RequestResponse>()
-
-    private fun requestBuildBody(): RequestResponse {
+    fun requestBuild(): RequestResponse {
         val requestId = UUID.randomUUID()
         if (locationRepository.findAll().isNotEmpty())
             return RequestResponse(requestId)
@@ -80,13 +76,6 @@ class RoadwaysGraphService(
             .map { (it.start.district to it.finish.district) to it.start }
             .groupBy { it.first }
             .mapValues { (k, v) -> v.map { it.second.id } }
-    }
-
-    fun requestBuild(): RequestResponse {
-        if (task.isDone)
-            return task.get()
-        task.complete(requestBuildBody())
-        return task.get()
     }
 
     fun requestGraph(): List<LocationLink> {
