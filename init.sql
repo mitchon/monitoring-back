@@ -28,11 +28,4 @@ create table if not exists master.borders (
     foreign key (location_id) references master.locations(id)
 );
 
--- explain analyse (select
---     s.id as s_id, s.latitude as s_latitude, s.longitude as s_longitude,
---     f.id as f_id, f.latitude as f_latitude, f.longitude as f_longitude,
---     ll.length
---     from master.location_links ll join master.locations s on ll.start = s.id join master.locations f on ll.finish = f.id
---     where s.id = 11111);
-
 create index location_links_start_id_index on master.location_links using btree (start);

@@ -43,7 +43,7 @@ interface LocationLinkEntityJdbiRepository {
         "from location_links ll join locations s on ll.start = s.id join locations f on ll.finish = f.id " +
         "where s.district != f.district"
     )
-    fun findBorders(): List<LocationLinkWithLocationsEntity>
+    fun findBorderingLinks(): List<LocationLinkWithLocationsEntity>
 
 
     @UseRowMapper(LocationLinkWithFinishMapper::class)
@@ -183,7 +183,7 @@ class LocationLinkRepository(
 
     fun deleteAll() = jdbiRepository.deleteAll()
 
-    fun findBorders() = jdbiRepository.findBorders()
+    fun findBorderingLinks() = jdbiRepository.findBorderingLinks()
 
     fun findInDistrict(districts: List<String>) = jdbiRepository.findInDistrict(districts)
 }

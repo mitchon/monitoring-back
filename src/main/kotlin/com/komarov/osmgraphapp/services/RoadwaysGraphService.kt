@@ -8,6 +8,7 @@ import com.komarov.osmgraphapp.entities.LocationLinkInsertableEntity
 import com.komarov.osmgraphapp.handlers.NodesHandler
 import com.komarov.osmgraphapp.handlers.WaysHandler
 import com.komarov.osmgraphapp.models.*
+import com.komarov.osmgraphapp.repositories.BorderRepository
 import com.komarov.osmgraphapp.repositories.LocationRepository
 import com.komarov.osmgraphapp.repositories.LocationLinkRepository
 import de.westnordost.osmapi.overpass.OverpassMapDataApi
@@ -22,6 +23,7 @@ class RoadwaysGraphService(
     private val overpass: OverpassMapDataApi,
     private val locationRepository: LocationRepository,
     private val locationLinkRepository: LocationLinkRepository,
+    private val borderRepository: BorderRepository,
     private val locationConverter: LocationConverter,
     private val locationLinkConverter: LocationLinkConverter
 ) {
@@ -61,13 +63,13 @@ class RoadwaysGraphService(
                 )
             }
         }
-        locationRepository.insertBordersBatch(borderLocations)
+        borderRepository.insertBatch(borderLocations)
         logger.info("Request $requestId is fulfilled")
         return RequestResponse(requestId)
     }
 
     private fun findBorderLocations(): Map<Pair<String, String>, List<Long>> {
-        val borderLinks = locationLinkRepository.findBorders()
+        val borderLinks = locationLinkRepository.findBorderingLinks()
             .filter {
                 !listOf("tertiary", "residential", "living_street", "unclassified")
                     .contains(it.start.type)
@@ -175,6 +177,13 @@ class RoadwaysGraphService(
                 type = way.tags["highway"] ?: "unclassified"
             )
         }.distinctBy { it.id }
+    }
+
+    fun getDistance(a: Long, b: Long): Double {
+        return countDistance(
+            locationRepository.findById(a)!!.let { locationConverter.convert(it) },
+            locationRepository.findById(b)!!.let { locationConverter.convert(it) }
+        )
     }
 
     private fun countDistance(a: Location, b: Location): Double {

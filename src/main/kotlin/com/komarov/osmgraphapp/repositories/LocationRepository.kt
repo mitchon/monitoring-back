@@ -36,53 +36,6 @@ interface LocationEntityJdbiRepository {
     @RegisterKotlinMapper(LocationEntity::class)
     @SqlUpdate("delete from master.locations where true")
     fun deleteAll()
-
-    @UseRowMapper(BorderWithLocationMapper::class)
-    @SqlQuery(
-        "select " +
-        "l.id as l_id, l.latitude as l_latitude, l.longitude as l_longitude, l.district as l_district, l.type as l_type, " +
-        "b.id as b_id, b.from_district, b.to_district " +
-        "from master.borders b join master.locations l on b.location_id = l.id "
-    )
-    fun findBorders(): List<BorderEntity>
-
-    @UseRowMapper(BorderWithLocationMapper::class)
-    @SqlQuery(
-        "with loc as (select * from locations where id = :id) " +
-        "select " +
-        "l.id as l_id, l.latitude as l_latitude, l.longitude as l_longitude, l.district as l_district, l.type as l_type, " +
-        "b.id as b_id, b.from_district, b.to_district " +
-        "from master.borders b join master.locations l on b.location_id = l.id " +
-        "join loc on 1=1 " +
-        "where b.from_district = :from and b.to_district = :to " +
-        "order by " +
-        "st_distancesphere(geometry(point(l.longitude, l.latitude)), geometry(point(loc.longitude, loc.latitude))) " +
-        "limit 1"
-    )
-    fun findClosestBorder(@Bind from: String, @Bind to: String, @Bind id: Long): BorderEntity
-
-    @RegisterKotlinMapper(BorderInsertableEntity::class)
-    @SqlBatch("insert into master.borders values (:id, :fromDistrict, :toDistrict, :location)")
-    fun insertBordersBatch(@BindBean borders: List<BorderInsertableEntity>)
-}
-
-class BorderWithLocationMapper: RowMapper<BorderEntity> {
-    @Throws(SQLException::class)
-    override fun map(rs: ResultSet, ctx: StatementContext): BorderEntity {
-        return BorderEntity(
-            id = rs.getObject("b_id", UUID::class.java),
-            fromDistrict = rs.getString("from_district"),
-            toDistrict = rs.getString("to_district"),
-            location = LocationEntity(
-                id = rs.getLong("l_id"),
-                latitude = rs.getDouble("l_latitude"),
-                longitude = rs.getDouble("l_longitude"),
-                district = rs.getString("l_district"),
-                type = rs.getString("l_type")
-            )
-        )
-    }
-
 }
 
 @Repository
@@ -94,7 +47,4 @@ class LocationRepository(
     fun findById(id: Long) = jdbiRepository.findById(id)
     fun insertBatch(locations: List<LocationEntity>) = jdbiRepository.insertBatch(locations)
     fun deleteAll() = jdbiRepository.deleteAll()
-    fun insertBordersBatch(borders: List<BorderInsertableEntity>) = jdbiRepository.insertBordersBatch(borders)
-    fun findBorders() = jdbiRepository.findBorders()
-    fun findClosestBorder(from: String, to: String, id: Long) = jdbiRepository.findClosestBorder(from, to, id)
 }

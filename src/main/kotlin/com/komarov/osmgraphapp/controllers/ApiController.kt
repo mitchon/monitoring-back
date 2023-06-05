@@ -4,6 +4,7 @@ import com.komarov.osmgraphapp.models.LocationLink
 import com.komarov.osmgraphapp.models.RequestResponse
 import com.komarov.osmgraphapp.services.RoadwaysGraphService
 import com.komarov.osmgraphapp.services.ShortestPathService
+import org.slf4j.LoggerFactory
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.RequestMapping
@@ -15,6 +16,8 @@ class ApiController(
     private val roadwaysGraphService: RoadwaysGraphService,
     private val shortestPathService: ShortestPathService
 ) {
+    private val logger = LoggerFactory.getLogger(this::class.java)
+
     @GetMapping("/build")
     fun buildGraph(): RequestResponse {
         return roadwaysGraphService.requestBuild()
@@ -41,7 +44,14 @@ class ApiController(
     }
 
     @GetMapping("/route/{start}/{finish}/parallel")
-    suspend fun parallel(@PathVariable start: Long, @PathVariable finish: Long): List<LocationLink>? {
+    fun parallel(@PathVariable start: Long, @PathVariable finish: Long): List<LocationLink>? {
+        return shortestPathService.parallelByDistrict(start, finish)
+    }
+
+    @GetMapping("/route/{start}/{finish}/measure")
+    fun measure(@PathVariable start: Long, @PathVariable finish: Long): List<LocationLink>? {
+        val distance = roadwaysGraphService.getDistance(start, finish)
+        logger.info("$start $finish $distance")
         return shortestPathService.parallelByDistrict(start, finish)
     }
 }

@@ -7,6 +7,7 @@ import com.komarov.osmgraphapp.entities.LocationEntity
 import com.komarov.osmgraphapp.entities.LocationLinkWithFinishAndStatusEntity
 import com.komarov.osmgraphapp.entities.LocationLinkWithFinishEntity
 import com.komarov.osmgraphapp.models.LocationLink
+import com.komarov.osmgraphapp.repositories.BorderRepository
 import com.komarov.osmgraphapp.repositories.LocationLinkRepository
 import com.komarov.osmgraphapp.repositories.LocationRepository
 import org.jgrapht.alg.shortestpath.DijkstraShortestPath
@@ -24,6 +25,7 @@ typealias CachedType = Map<Long, List<LocationLinkWithFinishEntity>>
 class ShortestPathService(
     private val locationRepository: LocationRepository,
     private val locationLinkRepository: LocationLinkRepository,
+    private val borderRepository: BorderRepository,
     private val locationLinkConverter: LocationLinkConverter,
     private val vertexConverter: VertexConverter,
 ) {
@@ -170,13 +172,13 @@ class ShortestPathService(
         val secondHalf = listOfTransitions.reversed().slice(0 until middle)
         var closestToPoint = globalStart.id
         val middlePointsFirstHalf = firstHalf.map {(fromDistr, toDistr) ->
-            locationRepository.findClosestBorder(fromDistr, toDistr, closestToPoint).location.also {
+            borderRepository.findClosest(fromDistr, toDistr, closestToPoint).location.also {
                 closestToPoint = it.id
             }
         }
         closestToPoint = globalGoal.id
         val middlePointsSecondHalf = secondHalf.map {(fromDistr, toDistr) ->
-            locationRepository.findClosestBorder(fromDistr, toDistr, closestToPoint).location.also {
+            borderRepository.findClosest(fromDistr, toDistr, closestToPoint).location.also {
                 closestToPoint = it.id
             }
         }.reversed()
@@ -202,7 +204,7 @@ class ShortestPathService(
     private lateinit var dijkstraForBorders: DijkstraShortestPath<String, DefaultEdge>
 
     init {
-        val borders = locationRepository.findBorders()
+        val borders = borderRepository.findAll()
         val bordersDistinct = borders.map { it.fromDistrict to it.toDistrict }.distinct()
         val districts = listOf("ЦАО","ЮВАО","ВАО","СВАО","САО","СЗАО","ЗАО","ЮЗАО","ЮАО")
         val graph = DirectedMultigraph<String, DefaultEdge>(DefaultEdge::class.java)
