@@ -30,9 +30,9 @@ class ShortestPathServiceTest(
         (667288052L to 10703096931L) to 9422,
         (302112360L to 7707691957L) to 11321,
         (6115944689L to 80241306L) to 13832,
-//        (4856083198L to 2107326315L) to 16788,
-//        (3933673224L to 1937115347L) to 21590,
-//        (68878578L to 10786867520L) to 24291,
+        (4856083198L to 2107326315L) to 16788,
+        (3933673224L to 1937115347L) to 21590,
+        (68878578L to 10786867520L) to 24291,
     )
 
     private fun StopWatch.runTaskNTimes (N: Int, task: () -> Any?): Double {
@@ -42,8 +42,8 @@ class ShortestPathServiceTest(
         return this.lastTaskTimeMillis.toDouble() / N
     }
 
-    private fun getTimeAndNumberOfLinks(list: List<LocationLink>): Pair<Double, > {
-        return list.sumOf { it.length / (it.maxSpeed / 3.6) }
+    private fun getTimeAndNumberOfLinks(list: List<LocationLink>): Pair<Double, Int> {
+        return list.sumOf { it.length / (it.maxSpeed / 3.6) } to list.size
     }
 
     @Test
@@ -52,16 +52,18 @@ class ShortestPathServiceTest(
             val (from, to) = coords
             logger.info("distance $dist")
             val stopWatch = StopWatch()
-            stopWatch.runTaskNTimes(1) { service.default(from, to) }
-                .let { logger.info("default    ${it.toString().replace(".", ",")}") }
-            stopWatch.runTaskNTimes(1) { service.safeSpace(from, to) }
-                .let { logger.info("safe-space ${it.toString().replace(".", ",")}") }
-            stopWatch.runTaskNTimes(1) { service.cached(from, to, 7500) }
-                .let { logger.info("cached     ${it.toString().replace(".", ",")}") }
-            logger.info("time ${getTime(service.cached(from, to, 7500)!!)}")
-            stopWatch.runTaskNTimes(1) { service.parallelByDistrict(from, to) }
-                .let { logger.info("parallel   ${it.toString().replace(".", ",")}") }
-            logger.info("time ${getTime(service.parallelByDistrict(from, to)!!)}")
+//            stopWatch.runTaskNTimes(4) { service.default(from, to) }
+//                .let { logger.info("default    ${it.toString().replace(".", ",")}") }
+//            stopWatch.runTaskNTimes(4) { service.safeSpace(from, to) }
+//                .let { logger.info("safe-space ${it.toString().replace(".", ",")}") }
+//            stopWatch.runTaskNTimes(4) { service.cached(from, to, 7500) }
+//                .let { logger.info("cached     ${it.toString().replace(".", ",")}") }
+            val estTimeAndLenOne = getTimeAndNumberOfLinks(service.cached(from, to, 7500)!!)
+            logger.info("time ${estTimeAndLenOne.first} length ${estTimeAndLenOne.second}")
+//            stopWatch.runTaskNTimes(4) { service.parallelByDistrict(from, to) }
+//                .let { logger.info("parallel   ${it.toString().replace(".", ",")}") }
+            val estTimeAndLenTwo = getTimeAndNumberOfLinks(service.parallelByDistrict(from, to)!!)
+            logger.info("time ${estTimeAndLenTwo.first} length ${estTimeAndLenTwo.second}")
         }
     }
 

@@ -46,7 +46,7 @@ open class TimeHeuristic: Heuristic {
         val a1 = sinLat * sinLat + cos(aLat) * cos(bLat) * sinLon * sinLon
         val a2 = 2 * atan2(sqrt(a1), sqrt(1 - a1))
         val distance = earthRadius * a2
-        return distance / ( 110 / 3.6 )
+        return distance / ( 130.0 / 3.6 )
     }
 }
 
